@@ -84,9 +84,9 @@ export default function LiveBattle() {
   }, [user]);
 
   const onSubmitCode = () => {
-    if (!roomId || !socketRef.current) return;
+    if (!roomId) return;
     setRunning(true);
-    setOutput("");
+    setOutput("Testing against all hidden cases...");
     socketRef.current.emit("submit_code", { code, roomId });
   };
 
@@ -156,13 +156,29 @@ export default function LiveBattle() {
         <div className="panel compile-panel">
           <h3>Submit Solution</h3>
           <div className="compile-area">
-            <button
-              className="run-btn"
-              onClick={onSubmitCode}
-              disabled={running || status === "finished"}
-            >
-              {running ? "Running..." : "Submit & Run"}
-            </button>
+            <div style={{ display: "flex", gap: "10px", marginBottom: "1rem" }}>
+              <button
+                className="run-btn"
+                style={{ flex: 1, backgroundColor: "#00e5ff", color: "#000" }} 
+                onClick={() => {
+                  if (!roomId || !socketRef.current) return;
+                  setRunning(true);
+                  setOutput("Testing against sample cases...");
+                  socketRef.current.emit("test_code", { code, roomId });
+                }}
+                disabled={running || status === "finished"}
+              >
+                {running ? "Testing..." : "Test (Sample)"}
+              </button>
+              <button
+                className="run-btn"
+                style={{ flex: 1 }}
+                onClick={onSubmitCode}
+                disabled={running || status === "finished"}
+              >
+                {running ? "Submitting..." : "Submit (All)"}
+              </button>
+            </div>
             <div className="output-box">
               {running ? (
                 <div className="loader">• • •</div>

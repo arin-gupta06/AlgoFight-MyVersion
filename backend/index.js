@@ -23,6 +23,21 @@ const io = new Server(server, {
   }
 });
 
+// Attach socket IO completely over to req.app for controllers
+app.set('io', io);
+
+io.on('connection', (socket) => {
+    socket.on('join_match', (matchId) => {
+        socket.join(matchId);
+        console.log(`User joined match: ${matchId}`);
+    });
+    
+    // Opponent typing progress (live updates constraint)
+    socket.on('code_typing', ({ matchId, userId, codeLength }) => {
+        socket.to(matchId).emit('opponent_progress', { userId, codeLength });
+    });
+});
+
 // ─── MongoDB Connection ─────────────────────────────────
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))

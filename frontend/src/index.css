@@ -1,43 +1,40 @@
 /* ===== FUTURISTIC HUD INTERFACE - GLOBAL CSS ===== */
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap');
 
 :root {
-  /* === PRIMARY COLORS - HUD PALETTE === */
-  --hud-cyan: #00f0ff;
-  --hud-cyan-dim: #006d73;
-  --hud-blue: #0080ff;
+  /* === PRIMARY COLORS - CYBERPUNK PALETTE === */
+  --hud-cyan: #00e5ff;
+  --hud-cyan-dim: #008899;
+  --hud-blue: #0055ff;
   --hud-purple: #8a2be2;
-  --hud-green: #00ff88;
-  --hud-red: #ff3366;
-  --hud-orange: #ff8800;
-  --hud-white: #e8f4f8;
+  --hud-white: #ffffff;
   
   /* === BACKGROUNDS === */
-  --bg-void: #030508;
-  --bg-space: #050810;
-  --bg-panel: rgba(5, 15, 25, 0.85);
-  --bg-panel-solid: #0a1520;
-  --bg-card: rgba(10, 25, 40, 0.6);
-  --bg-card-hover: rgba(15, 35, 55, 0.8);
-  --bg-elevated: rgba(0, 240, 255, 0.03);
+  --bg-void: #000000;
+  --bg-space: #030303;
+  --bg-panel: rgba(0, 0, 0, 0.85);
+  --bg-panel-solid: #050505;
+  --bg-card: rgba(0, 20, 30, 0.4);
+  --bg-card-hover: rgba(0, 30, 50, 0.7);
+  --bg-elevated: rgba(0, 229, 255, 0.05);
   
   /* === BORDERS === */
-  --border-dim: rgba(0, 240, 255, 0.15);
-  --border-default: rgba(0, 240, 255, 0.25);
-  --border-bright: rgba(0, 240, 255, 0.5);
+  --border-dim: rgba(0, 229, 255, 0.2);
+  --border-default: rgba(0, 229, 255, 0.4);
+  --border-bright: rgba(0, 229, 255, 0.8);
   --border-active: var(--hud-cyan);
   
   /* === TEXT === */
-  --text-primary: #e8f4f8;
-  --text-secondary: rgba(0, 240, 255, 0.7);
-  --text-dim: rgba(0, 240, 255, 0.4);
-  --text-muted: rgba(255, 255, 255, 0.3);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.85);
+  --text-dim: rgba(0, 229, 255, 0.6);
+  --text-muted: rgba(255, 255, 255, 0.4);
   
   /* === GLOWS & SHADOWS === */
-  --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.3), 0 0 40px rgba(0, 240, 255, 0.1);
-  --glow-cyan-intense: 0 0 10px rgba(0, 240, 255, 0.5), 0 0 30px rgba(0, 240, 255, 0.3), 0 0 60px rgba(0, 240, 255, 0.1);
-  --glow-text: 0 0 10px rgba(0, 240, 255, 0.5);
-  --shadow-panel: 0 4px 30px rgba(0, 0, 0, 0.5);
+  --glow-cyan: 0 0 15px rgba(0, 229, 255, 0.4);
+  --glow-cyan-intense: 0 0 20px rgba(0, 229, 255, 0.6), 0 0 40px rgba(0, 229, 255, 0.2);
+  --glow-text: 0 0 8px rgba(0, 229, 255, 0.7);
+  --shadow-panel: 0 4px 30px rgba(0, 0, 0, 0.8);
   
   /* === SPACING === */
   --spacing-xs: 8px;
@@ -48,9 +45,9 @@
   --spacing-2xl: 64px;
   
   /* === BORDERS RADIUS === */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
   
   /* === TRANSITIONS === */
   --transition-fast: 0.15s ease;
@@ -58,8 +55,8 @@
   --transition-slow: 0.4s ease;
   
   /* === TYPOGRAPHY === */
-  --font-display: 'Orbitron', monospace;
-  --font-primary: 'Rajdhani', sans-serif;
+  --font-display: 'Orbitron', sans-serif;
+  --font-primary: 'Inter', sans-serif;
   --font-mono: 'Share Tech Mono', monospace;
   
   --font-xs: 0.7rem;
@@ -101,7 +98,7 @@ html, body {
   color: var(--text-primary);
   font-family: var(--font-primary);
   font-size: var(--font-base);
-  font-weight: var(--font-medium);
+  font-weight: var(--font-normal);
   letter-spacing: 0.02em;
   line-height: 1.6;
   overflow-x: hidden;
@@ -113,22 +110,18 @@ html, body {
 body {
   background-image: 
     /* Dot grid pattern */
-    radial-gradient(circle at center, rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at center, rgba(0, 229, 255, 0.15) 1px, transparent 1px),
     /* Larger grid lines */
-    linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px),
-    /* Subtle radial gradient for depth */
-    radial-gradient(ellipse at 50% 0%, rgba(0, 80, 120, 0.15) 0%, transparent 50%);
+    linear-gradient(rgba(0, 229, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.08) 1px, transparent 1px);
   background-size: 
     40px 40px,
     80px 80px,
-    80px 80px,
-    100% 100%;
+    80px 80px;
   background-position: 
     0 0,
     0 0,
-    0 0,
-    center top;
+    0 0;
   background-attachment: fixed;
 }
 
@@ -138,21 +131,21 @@ body::before {
   position: fixed;
   inset: 0;
   background-image: 
-    radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.3), transparent),
-    radial-gradient(1px 1px at 40px 70px, rgba(0, 240, 255, 0.2), transparent),
-    radial-gradient(1px 1px at 50px 160px, rgba(255, 255, 255, 0.2), transparent),
-    radial-gradient(1px 1px at 90px 40px, rgba(0, 240, 255, 0.15), transparent),
-    radial-gradient(1px 1px at 130px 80px, rgba(255, 255, 255, 0.2), transparent),
-    radial-gradient(1px 1px at 160px 120px, rgba(0, 240, 255, 0.1), transparent);
+    radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.4), transparent),
+    radial-gradient(1px 1px at 40px 70px, rgba(0, 229, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 50px 160px, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 90px 40px, rgba(0, 229, 255, 0.2), transparent),
+    radial-gradient(1px 1px at 130px 80px, rgba(255, 255, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 160px 120px, rgba(0, 229, 255, 0.15), transparent);
   background-size: 200px 200px;
-  animation: twinkle 8s ease-in-out infinite alternate;
+  animation: glow-pulse 4s ease-in-out infinite alternate;
   pointer-events: none;
   z-index: 0;
 }
 
-@keyframes twinkle {
-  0% { opacity: 0.3; }
-  100% { opacity: 0.7; }
+@keyframes glow-pulse {
+  0% { opacity: 0.1; }
+  100% { opacity: 0.5; }
 }
 
 /* ===== TYPOGRAPHY - HUD STYLE ===== */
@@ -167,13 +160,17 @@ h1, h2, h3, h4, h5, h6 {
 
 h1 {
   font-size: var(--font-4xl);
-  letter-spacing: var(--letter-spacing-widest);
-  text-shadow: var(--glow-text);
+  font-weight: 900;
+  letter-spacing: var(--letter-spacing-wider);
+  text-shadow: var(--glow-cyan-intense);
 }
 
 h2 {
   font-size: var(--font-2xl);
+  font-weight: 700;
   letter-spacing: var(--letter-spacing-wider);
+  color: var(--hud-cyan);
+  text-shadow: var(--glow-text);
 }
 
 h3 {

@@ -1,138 +1,163 @@
+const { exec } = require('child_process');
+const fs = require('fs').promises;
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 const Submission = require('../models/Submission');
 const Match = require('../models/Match');
 const Problem = require('../models/Problem');
-const { updateRatings } = require('./ratingService');
 const logger = require('../config/logger');
 
-/**
- * Process a code submission.
- * Since Docker execution is not implemented, this performs a simple
- * string comparison of the code output against expected test case outputs.
- *
- * In a production system, this would spawn a Docker container to run the code.
- * For now, the submission is saved and test results are evaluated by comparing
- * the user's provided output (via a simple eval-like approach for JS, or
- * marking as "pending" for review).
- */
-const processSubmission = async (userId, matchId, code, language) => {
-    // Verify the match is active
-    const match = await Match.findById(matchId);
-    if (!match) {
-        throw new Error('Match not found');
-    }
-    if (match.status !== 'active') {
-        throw new Error('Match is not active');
-    }
+const TEMP_DIR = path.join(__dirname, '../../../executor/temp');
 
-    // Verify the user is a participant
-    const isPlayer1 = match.player1.toString() === userId.toString();
-    const isPlayer2 = match.player2 && match.player2.toString() === userId.toString();
-    if (!isPlayer1 && !isPlayer2) {
-        throw new Error('You are not a participant in this match');
-    }
+// Helper to execute code in Docker
+const executeCode = async (code, language, inputStr) => {
+    const runId = uuidv4();
+    const isPython = language === 'python';
+    const isCpp = language === 'cpp';
+    const fileName = isPython ? 'main.py' : (isCpp ? 'main.cpp' : 'main.js');
+    
+    const runDir = path.join(TEMP_DIR, runId);
+    const filePath = path.join(runDir, fileName);
+    const inputPath = path.join(runDir, 'input.txt');
 
-    // Check match time limit (default 30 minutes)
-    const matchDuration = parseInt(process.env.MATCH_DURATION) || 1800000;
-    if (match.startTime) {
-        const elapsed = Date.now() - match.startTime.getTime();
-        if (elapsed > matchDuration) {
-            throw new Error('Match time has expired');
+    try {
+        await fs.mkdir(runDir, { recursive: true });
+        
+        let fileContent = code;
+        let command = '';
+
+        if (isPython) {
+            command = `docker run --rm -v "${runDir}":/code --net none --memory=256m --cpus=1 algofight-executor bash -c "timeout 2s python3 /code/main.py < /code/input.txt"`;
+        } else if (isCpp) {
+            command = `docker run --rm -v "${runDir}":/code --net none --memory=256m --cpus=1 algofight-executor bash -c "g++ /code/main.cpp -o /code/main.out && timeout 2s /code/main.out < /code/input.txt"`;
+        } else {
+            // Assume Javascript
+            command = `docker run --rm -v "${runDir}":/code --net none --memory=256m --cpus=1 algofight-executor bash -c "timeout 2s node /code/main.js < /code/input.txt"`;
         }
+
+        await fs.writeFile(filePath, fileContent);
+        // Input string from problem.testCases (which might be an array or object in MongoDB)
+        // Convert to string safely if it's an object/array, else stringify primitive
+        const finalInput = typeof inputStr === 'string' ? inputStr : JSON.stringify(inputStr);
+        await fs.writeFile(inputPath, finalInput);
+
+        const startTime = Date.now();
+        const { stdout, stderr } = await new Promise((resolve, reject) => {
+            exec(command, { timeout: 3000 }, (error, stdout, stderr) => {
+                if (error) {
+                    if (error.code === 124 || error.killed) reject(new Error('Time Limit Exceeded'));
+                    else reject(error || new Error(stderr));
+                } else resolve({ stdout, stderr });
+            });
+        });
+        const executionTime = Date.now() - startTime;
+        
+        await fs.rm(runDir, { recursive: true, force: true });
+        return { output: stdout.trim(), executionTime, error: null };
+    } catch (err) {
+        await fs.rm(runDir, { recursive: true, force: true }).catch(() => {});
+        return { 
+            output: null, 
+            executionTime: err.message === 'Time Limit Exceeded' ? 2000 : 0, 
+            error: err.message === 'Time Limit Exceeded' ? 'TLE' : 'Runtime Error' 
+        };
+    }
+};
+const processSubmission = async (userId, matchId, code, language, problemId, io) => {
+    const match = await Match.findById(matchId);
+    if (!match || match.status !== 'active') throw new Error('Match not active or not found');
+
+    const problem = await Problem.findById(problemId);
+    if (!problem) throw new Error('Problem not found');
+
+    let passedCases = 0;
+    let totalTime = 0;
+    let finalVerdict = 'Accepted';
+    let testResultsData = [];
+
+    // Run against all hidden test cases
+    for (const tc of problem.testCases) {
+        const { output, executionTime, error } = await executeCode(code, language, tc.input);
+        totalTime += executionTime;
+
+        // Verify output exactly
+        // MongoDB might store integer expected values, convert to String explicitly
+        const expectedStr = String(tc.expected).trim();
+
+        if (error === 'TLE') {
+            finalVerdict = 'Time Limit Exceeded';
+            testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: 'N/A', passed: false });
+            break;
+        } else if (error) {
+            finalVerdict = 'Runtime Error';
+            testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: 'ERROR', passed: false });
+            break;
+        } else if (output !== expectedStr) {
+            finalVerdict = 'Wrong Answer';
+            testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: output, passed: false });
+            break;
+        }
+        
+        passedCases++;
+        testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: output, passed: true });
     }
 
-    // Get the problem and test cases
-    const problem = await Problem.findById(match.problemId);
-    if (!problem) {
-        throw new Error('Problem not found');
-    }
+    const isAccepted = finalVerdict === 'Accepted';
 
-    // Create the submission
     const submission = await Submission.create({
         matchId,
         userId,
         code,
         language,
-        status: 'pending'
+        status: isAccepted ? 'passed' : 'failed',
+        executionTime: totalTime,
+        verdict: finalVerdict,
+        testResults: testResultsData,
+        passedCases,
+        totalCases: problem.testCases.length
     });
 
-    // Simple test case evaluation (placeholder — no actual code execution)
-    // In production, this would be done by the Docker execution engine
-    const testResults = problem.testCases.map((tc) => ({
-        input: tc.input,
-        expectedOutput: tc.expectedOutput,
-        actualOutput: 'N/A (execution engine not enabled)',
-        passed: false
-    }));
-
-    // Mark submission status based on test results
-    const allPassed = testResults.every((r) => r.passed);
-    submission.status = allPassed ? 'passed' : 'failed';
-    submission.testResults = testResults;
-    submission.executionTime = 0;
-    await submission.save();
-
-    // Add submission to match
     match.submissions.push(submission._id);
     await match.save();
 
-    logger.info(`Submission ${submission._id} by user ${userId} for match ${matchId}: ${submission.status}`);
-
-    // Check for winner if submission passed
-    if (allPassed) {
-        await checkWinner(match);
+    // Real-Time Socket Updates
+    if (io) {
+        io.to(matchId).emit('submission_result', {
+            userId,
+            verdict: finalVerdict,
+            passedCases,
+            totalCases: problem.testCases.length
+        });
     }
 
-    return submission;
+    // Checking Winner logic inline here 
+    if (isAccepted) {
+        // Did anyone else pass before me?
+        const priorWinner = await Submission.findOne({ matchId, status: 'passed', userId: { $ne: userId } });
+        
+        if (!priorWinner && match.status === 'active') {
+            match.winner = userId;
+            match.status = 'completed';
+            match.endTime = new Date();
+            await match.save();
+
+            if (io) {
+                io.to(matchId).emit('battle_result', {
+                    winner: userId,
+                    reason: 'Correct solution submitted fastest'
+                });
+            }
+            logger.info(`Match ${matchId} completed. Winner: ${userId}`);
+        }
+    }
+
+    return {
+        passed: isAccepted,
+        testCasesPassed: passedCases,
+        totalTestCases: problem.testCases.length,
+        executionTime: totalTime,
+        verdict: finalVerdict
+    };
 };
 
-/**
- * Check if there is a winner for the match.
- * Winner logic:
- *  1. First correct submission wins
- *  2. If both correct, compare timestamps
- *  3. If neither correct, match continues until time expires
- */
-const checkWinner = async (match) => {
-    const passedSubmissions = await Submission.find({
-        matchId: match._id,
-        status: 'passed'
-    }).sort({ submittedAt: 1 });
-
-    if (passedSubmissions.length === 0) return;
-
-    // First correct submission wins
-    const winner = passedSubmissions[0];
-    const loserId = match.player1.toString() === winner.userId.toString()
-        ? match.player2
-        : match.player1;
-
-    match.winner = winner.userId;
-    match.status = 'completed';
-    match.endTime = new Date();
-    await match.save();
-
-    // Update ratings
-    await updateRatings(winner.userId, loserId);
-
-    logger.info(`Match ${match._id} completed. Winner: ${winner.userId}`);
-};
-
-/**
- * End a match as a draw (e.g., when time expires with no correct submissions).
- */
-const endMatchAsDraw = async (matchId) => {
-    const match = await Match.findById(matchId);
-    if (!match || match.status !== 'active') return;
-
-    match.status = 'completed';
-    match.isDraw = true;
-    match.endTime = new Date();
-    await match.save();
-
-    await updateRatings(null, null, match.player1, match.player2, true);
-
-    logger.info(`Match ${matchId} ended as a draw`);
-    return match;
-};
-
-module.exports = { processSubmission, checkWinner, endMatchAsDraw };
+module.exports = { processSubmission, executeCode };

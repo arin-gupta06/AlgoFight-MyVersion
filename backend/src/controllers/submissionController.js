@@ -9,19 +9,23 @@ const logger = require('../config/logger');
  */
 exports.submitCode = async (req, res, next) => {
     try {
-        const { matchId, code, language } = req.body;
+        // Allow fallback to generic body vars so legacy calls matching problemId/userId work as well
+        const { matchId, code, language, problemId } = req.body;
+        
+        // Grab io reference from app so it can push updates over socket
+        const io = req.app.get('io');
+        const userId = req.body.userId || req.user._id;
 
-        const submission = await processSubmission(
-            req.user._id,
+        const submissionResult = await processSubmission(
+            userId,
             matchId,
             code,
-            language
+            language,
+            problemId,
+            io
         );
 
-        res.status(201).json({
-            message: `Submission ${submission.status}`,
-            submission
-        });
+        res.status(201).json(submissionResult);
     } catch (error) {
         // Handle known business errors with 400
         if (error.message.includes('not found') ||

@@ -18,8 +18,7 @@ function Home() {
                     <span className="algo-fight-text">Algo</span><span className="algo-fight-text fight-part">Fight</span>
                 </div>
                 
-                <p className="hero-subtitle">Fight for Code Glory</p>
-                
+                <h1 className="hero-subtitle tagline-bold">Fight for Code Glory</h1>                
                 <button className="enter-arena-btn"
                     onClick={() => navigate("/battle")}
                 >Enter the Arena
