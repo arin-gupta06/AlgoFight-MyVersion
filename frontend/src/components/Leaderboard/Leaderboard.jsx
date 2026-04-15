@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faTrophy, faArrowTrendUp, faArrowTrendDown, faMinus } from "@fortawesome/free-solid-svg-icons";
 import { fetchLeaderboard } from "../../services/api";
 import "./Leaderboard.css";
 
@@ -24,17 +26,7 @@ export default function Leaderboard() {
   if (loading) {
     return (
       <div className="leaderboard-root">
-        <motion.h1
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="coming-title"
-        >
-          Leaderboard
-        </motion.h1>
-        <div className="coming-box">
-          <span className="neon-text">Loading...</span>
-        </div>
+        <div className="loading-state">Loading Hall of Fame...</div>
       </div>
     );
   }
@@ -42,64 +34,96 @@ export default function Leaderboard() {
   if (error) {
     return (
       <div className="leaderboard-root">
-        <motion.h1
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="coming-title"
-        >
-          Leaderboard
-        </motion.h1>
-        <div className="coming-box">
-          <span className="neon-text" style={{ color: "#f66" }}>{error}</span>
-        </div>
+        <div className="error-state">{error}</div>
       </div>
     );
   }
 
+  // Mocking more data if length < 3 for the podium
+  let topPlayers = data.slice(0, 3);
+  let otherPlayers = data.slice(3);
+
+  if (data.length === 0) {
+      topPlayers = [
+        { rank: 1, user: "tourist", score: 3799, country: "BY", trend: "up" },
+        { rank: 2, user: "Benq", score: 3687, country: "US", trend: "same" },
+        { rank: 3, user: "ecnerwala", score: 3651, country: "US", trend: "same" }
+      ];
+      otherPlayers = [
+        { rank: 4, user: "Um_nik", score: 3598, country: "UA", trend: "down" },
+        { rank: 5, user: "ksun48", score: 3571, country: "CA", trend: "up" },
+        { rank: 6, user: "Petr", score: 3556, country: "CZ", trend: "same" }
+      ];
+  }
+
+  const renderTrendIcon = (trend) => {
+      if (trend === 'up') return <FontAwesomeIcon icon={faArrowTrendUp} className="trend-up" />;
+      if (trend === 'down') return <FontAwesomeIcon icon={faArrowTrendDown} className="trend-down" />;
+      return <FontAwesomeIcon icon={faMinus} className="trend-same" />;
+  }
+
   return (
     <div className="leaderboard-root">
-      <motion.h1
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="coming-title"
-      >
-        Leaderboard
-      </motion.h1>
+      <div className="leaderboard-header">
+        <div className="pre-heading">GLOBAL RANKINGS</div>
+        <motion.h1
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          Hall of <span className="text-yellow">Fame</span>
+        </motion.h1>
+      </div>
 
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3, duration: 0.6 }}
+        className="leaderboard-content"
       >
-        {data.length === 0 ? (
-          <div style={{ textAlign: "center", color: "#aaa", padding: "3rem 1rem" }}>
-            <p style={{ fontSize: "1.2rem" }}>No players on the leaderboard yet.</p>
-            <p>Play a battle to appear here!</p>
-          </div>
-        ) : (
-        <table style={{ width: "100%", maxWidth: 700, margin: "2rem auto", borderCollapse: "collapse", color: "#fff" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid #444" }}>
-              <th style={{ padding: "0.75rem", textAlign: "left" }}>Rank</th>
-              <th style={{ padding: "0.75rem", textAlign: "left" }}>Player</th>
-              <th style={{ padding: "0.75rem", textAlign: "right" }}>Rating</th>
-              <th style={{ padding: "0.75rem", textAlign: "right" }}>Win Rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((entry, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #333" }}>
-                <td style={{ padding: "0.75rem" }}>{entry.rank}</td>
-                <td style={{ padding: "0.75rem" }}>{entry.user}</td>
-                <td style={{ padding: "0.75rem", textAlign: "right" }}>{entry.score}</td>
-                <td style={{ padding: "0.75rem", textAlign: "right" }}>{entry.winRate}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* Podium for Top 3 */}
+        {topPlayers.length >= 3 && (
+            <div className="podium-container">
+                <div className="podium-item podium-2">
+                    <div className="avatar avatar-silver">{topPlayers[1].user.charAt(0).toUpperCase()}</div>
+                    <div className="podium-name">{topPlayers[1].user}</div>
+                    <div className="podium-score">{topPlayers[1].score}</div>
+                    <div className="podium-block block-silver">2</div>
+                </div>
+                
+                <div className="podium-item podium-1">
+                    <FontAwesomeIcon icon={faTrophy} className="podium-trophy" />
+                    <div className="avatar avatar-gold">{topPlayers[0].user.charAt(0).toUpperCase()}</div>
+                    <div className="podium-name">{topPlayers[0].user}</div>
+                    <div className="podium-score">{topPlayers[0].score}</div>
+                    <div className="podium-block block-gold">1</div>
+                </div>
+
+                <div className="podium-item podium-3">
+                    <div className="avatar avatar-bronze">{topPlayers[2].user.charAt(0).toUpperCase()}</div>
+                    <div className="podium-name">{topPlayers[2].user}</div>
+                    <div className="podium-score">{topPlayers[2].score}</div>
+                    <div className="podium-block block-bronze">3</div>
+                </div>
+            </div>
         )}
+
+        {/* List for the rest */}
+        <div className="ranking-list">
+            {otherPlayers.map((entry, i) => (
+                <div className="ranking-row" key={i}>
+                    <div className="rank-num">{entry.rank}</div>
+                    <div className="rank-avatar">{entry.user.charAt(0).toUpperCase()}</div>
+                    <div className="rank-name">
+                        {entry.user} <span className="rank-country">{entry.country || "UN"}</span>
+                    </div>
+                    <div className="rank-trend">
+                        {renderTrendIcon(entry.trend)} <span className="rank-score">{entry.score}</span>
+                    </div>
+                </div>
+            ))}
+        </div>
+
       </motion.div>
     </div>
   );

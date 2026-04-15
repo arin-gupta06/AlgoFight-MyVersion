@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import ResultPopup from "./ResultPopup.jsx";
 import { useAuth } from "../../contexts/AuthContext";
 import { fetchUserProfile } from "../../services/api";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faTrophy, faBullseye, faBolt, faMagnifyingGlass, faCrosshairs } from "@fortawesome/free-solid-svg-icons";
 import "./BattleArena.css";
 
 export default function BattleArena() {
@@ -53,22 +55,23 @@ export default function BattleArena() {
           animate={{ y: 0, opacity: 1 }}
           className="arena-title"
         >
-          ⚔️ Battle Arena
+          <FontAwesomeIcon icon={faCrosshairs} style={{marginRight: '12px'}}/> 
+          Battle Arena
         </motion.h1>
 
         <section className="arena-stats">
           <div className="stat-card green">
-            <div className="stat-icon">🏆</div>
+            <div className="stat-icon"><FontAwesomeIcon icon={faTrophy} /></div>
             <div className="stat-number">{rating}</div>
             <div className="stat-label">Rating</div>
           </div>
           <div className="stat-card red">
-            <div className="stat-icon">🎯</div>
+            <div className="stat-icon"><FontAwesomeIcon icon={faBullseye} /></div>
             <div className="stat-number">{matchesWon}</div>
             <div className="stat-label">Battles Won</div>
           </div>
           <div className="stat-card blue">
-            <div className="stat-icon">⚡</div>
+            <div className="stat-icon"><FontAwesomeIcon icon={faBolt} /></div>
             <div className="stat-number">{winRate}%</div>
             <div className="stat-label">Win Rate</div>
           </div>
@@ -76,18 +79,17 @@ export default function BattleArena() {
 
         <section className="opponents-section">
           <h2 className="section-title">Ready to Code?</h2>
-          <p style={{ color: "#aaa", marginBottom: "1.5rem", textAlign: "center" }}>
-            Click below to find a real opponent and battle in a live coding challenge.
+          <p className="challenge-text">
+            Click below to find a real opponent and battle in a live coding challenge. Matchmaking is based on your current global rating.
           </p>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <motion.button
-              className="challenge-btn"
+              className="challenge-btn challenge-btn-large"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={startMatchmaking}
-              style={{ padding: "1rem 3rem", fontSize: "1.2rem" }}
             >
-              🔍 Find Match
+              <FontAwesomeIcon icon={faMagnifyingGlass} style={{marginRight: "12px"}} /> Find Match
             </motion.button>
           </div>
         </section>

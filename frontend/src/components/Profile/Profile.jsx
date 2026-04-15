@@ -1,209 +1,284 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import './Profile.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser , faTrophy, faBullseye, faBolt, faCode, faChartBar, faStar } from '@fortawesome/free-solid-svg-icons'; // Added faChartBar, faStar
-import Rapid from './Rapid.png';
-import Nutcracker from './Nutcracker.png';
+import {
+    faBolt,
+    faChartLine,
+    faCheckCircle,
+    faCode,
+    faMedal,
+    faShieldHalved,
+    faStar,
+    faTrophy,
+    faUser,
+} from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchUserProfile } from '../../services/api';
 
+function deriveRank(rating) {
+    if (rating >= 2200) return 'Grandmaster';
+    if (rating >= 1800) return 'Master';
+    if (rating >= 1500) return 'Expert';
+    if (rating >= 1200) return 'Warrior';
+    return 'Novice';
+}
 
 function Profile() {
-    const { user } = useAuth();
-    const displayName = user?.displayName || user?.email || "Player";
-    const photoURL = user?.photoURL;
-
+    const { user, loading: authLoading } = useAuth();
     const [profile, setProfile] = useState(null);
+    const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+    const [profileError, setProfileError] = useState('');
 
     useEffect(() => {
-        if (user?.uid) {
-            fetchUserProfile(user.uid)
-                .then(data => { if (data) setProfile(data); })
-                .catch(err => console.error("Failed to fetch profile:", err));
-        }
-    }, [user]);
+        let active = true;
 
-    const rating = profile?.rating ?? 1200;
-    const matchesPlayed = profile?.matchesPlayed ?? 0;
-    const matchesWon = profile?.matchesWon ?? 0;
+        const loadProfile = async () => {
+            if (!user?.uid) {
+                setProfile(null);
+                setIsLoadingProfile(false);
+                return;
+            }
+
+            setIsLoadingProfile(true);
+            setProfileError('');
+
+            try {
+                const data = await fetchUserProfile(user.uid);
+                if (!active) return;
+                setProfile(data || null);
+            } catch (error) {
+                if (!active) return;
+                setProfileError('Could not sync profile data. Showing local defaults.');
+                setProfile(null);
+            } finally {
+                if (active) setIsLoadingProfile(false);
+            }
+        };
+
+        loadProfile();
+        return () => {
+            active = false;
+        };
+    }, [user?.uid]);
+
+    const displayName = profile?.displayName || user?.displayName || user?.email || 'Player';
+    const email = profile?.email || user?.email || '';
+    const photoURL = profile?.photoURL || user?.photoURL || '';
+
+    const rating = Number(profile?.rating ?? 1200);
+    const matchesPlayed = Number(profile?.matchesPlayed ?? 0);
+    const matchesWon = Number(profile?.matchesWon ?? 0);
+    const practiceSolved = Number(
+        profile?.practiceSolvedCount ??
+        (Array.isArray(profile?.practiceSolvedProblemIds) ? profile.practiceSolvedProblemIds.length : 0)
+    );
+    const practiceSubmissions = Number(profile?.practiceSubmissionCount ?? 0);
     const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
+    const practiceAccuracy = practiceSubmissions > 0 ? Math.round((practiceSolved / practiceSubmissions) * 100) : 0;
+    const lossCount = Math.max(0, matchesPlayed - matchesWon);
+    const rank = deriveRank(rating);
+
+    const ratingProgress = Math.min(100, Math.round((rating / 2400) * 100));
+    const activityProgress = Math.min(100, Math.round(((matchesPlayed + practiceSolved) / 120) * 100));
+    const practiceProgress = Math.min(100, Math.round((practiceSolved / 100) * 100));
+    const consistencyProgress = Math.min(100, Math.round((winRate / 100) * 100));
+
+    const profileStats = useMemo(
+        () => [
+            {
+                label: 'Current Rating',
+                value: rating,
+                hint: `${rank} tier`,
+                icon: faTrophy,
+                tone: 'gold',
+            },
+            {
+                label: 'Battles Played',
+                value: matchesPlayed,
+                hint: `${matchesWon} wins / ${lossCount} losses`,
+                icon: faCode,
+                tone: 'cyan',
+            },
+            {
+                label: 'Practice Solved',
+                value: practiceSolved,
+                hint: `${practiceSubmissions} submissions • ${practiceAccuracy}% efficiency`,
+                icon: faCheckCircle,
+                tone: 'green',
+            },
+            {
+                label: 'Win Rate',
+                value: `${winRate}%`,
+                hint: 'Across all matches',
+                icon: faBolt,
+                tone: 'green',
+            },
+            {
+                label: 'Current Rank',
+                value: rank,
+                hint: 'Keep climbing',
+                icon: faMedal,
+                tone: 'violet',
+            },
+        ],
+        [rating, rank, matchesPlayed, matchesWon, lossCount, winRate, practiceSolved, practiceSubmissions, practiceAccuracy]
+    );
+
+    const achievements = useMemo(
+        () => [
+            {
+                title: 'Arena Starter',
+                description: 'Play your first 10 battles.',
+                unlocked: matchesPlayed >= 10,
+                icon: faShieldHalved,
+            },
+            {
+                title: 'Rapid Climber',
+                description: 'Reach a 60% win rate.',
+                unlocked: winRate >= 60,
+                icon: faChartLine,
+            },
+            {
+                title: 'Elite Coder',
+                description: 'Cross 1500 rating.',
+                unlocked: rating >= 1500,
+                icon: faStar,
+            },
+            {
+                title: 'Problem Grinder',
+                description: 'Solve 25 practice problems.',
+                unlocked: practiceSolved >= 25,
+                icon: faCode,
+            },
+        ],
+        [matchesPlayed, winRate, rating, practiceSolved]
+    );
+
+    if (authLoading || isLoadingProfile) {
+        return (
+            <div className="profile-page">
+                <div className="profile-loading">Loading profile...</div>
+            </div>
+        );
+    }
 
     return (
-        <div className="profile-container">
-            <main className="main-content">
-                <div className="left-column"> 
-                    <section className="profile-hero card">
-                        <div className="profile-header">
-                            <div className="profile-info">
-                                <div className="profile-name-wrapper">
-                                    {photoURL ? (
-                                        <img src={photoURL} alt="avatar" style={{ width: 40, height: 40, borderRadius: "50%", marginRight: 10 }} />
-                                    ) : (
-                                        <FontAwesomeIcon icon={faUser } className="profile-icon" />
-                                    )}
-                                    <h1 className="profile-name">{displayName}</h1>
-                                </div>
-                                <p className="profile-email" style={{ color: "#aaa", fontSize: "0.9rem" }}>
-                                    {user?.email || ""}
-                                </p>
-                                <p className="profile-quote">
-                                    Ready to take on the next coding challenge!
-                                </p>
-                                <ul className="skills-list">
-                                    <li className="skill-item">JavaScript</li>
-                                    <li className="skill-item">React</li>
-                                    <li className="skill-item">Node.js</li>
-                                    <li className="skill-item">C++</li>
-                                    <li className="skill-item">Python</li>
-                                </ul>
+        <div className="profile-page">
+            <section className="profile-hero-card">
+                <div className="profile-identity-row">
+                    <div className="profile-avatar-shell">
+                        {photoURL ? (
+                            <img src={photoURL} alt="Profile avatar" className="profile-avatar-image" />
+                        ) : (
+                            <FontAwesomeIcon icon={faUser} />
+                        )}
+                    </div>
+
+                    <div className="profile-identity-copy">
+                        <div className="profile-pre-heading">PLAYER PROFILE</div>
+                        <h1>{displayName}</h1>
+                        <p>{email || 'Signed-in competitor'}</p>
+                    </div>
+
+                    <div className="profile-rank-chip">{rank}</div>
+                </div>
+
+                {profileError ? <div className="profile-warning">{profileError}</div> : null}
+            </section>
+
+            <section className="profile-stat-grid">
+                {profileStats.map((stat) => (
+                    <article key={stat.label} className="profile-stat-card">
+                        <div className={`profile-stat-icon tone-${stat.tone}`}>
+                            <FontAwesomeIcon icon={stat.icon} />
+                        </div>
+                        <div className="profile-stat-content">
+                            <p>{stat.label}</p>
+                            <h3>{stat.value}</h3>
+                            <span>{stat.hint}</span>
+                        </div>
+                    </article>
+                ))}
+            </section>
+
+            <section className="profile-content-grid">
+                <article className="profile-panel">
+                    <div className="profile-panel-head">
+                        <h2>Progress Overview</h2>
+                        <span className="profile-chip">Live</span>
+                    </div>
+
+                    <div className="profile-progress-list">
+                        <div className="profile-progress-item">
+                            <div className="profile-progress-head">
+                                <span>Rating Progress</span>
+                                <strong>{rating} / 2400</strong>
+                            </div>
+                            <div className="profile-progress-track">
+                                <div className="profile-progress-fill tone-cyan" style={{ width: `${ratingProgress}%` }} />
                             </div>
                         </div>
-                    </section>
 
-                    
-                    <section className="battle-history-section card">
-                        <div className="section-header">
-                            <h2 className="section-title">
-                                <FontAwesomeIcon icon={faCode} className="title-icon" />
-                                Battle History
-                            </h2>
-                            <p className="section-subtitle">Track your coding conquests</p>
-                        </div>
-
-                        <div className="stats-grid">
-                            
-                            <div className="stat-card cr">
-                                <div className="stat-icon-wrapper">
-                                    <FontAwesomeIcon icon={faTrophy} className="stat-icon" />
-                                </div>
-                                <div className="stat-content">
-                                    <h3 className="stat-value">{rating}</h3>
-                                    <p className="stat-label">Rating</p>
-                                    <div className="stat-progress">
-                                        <div className="progress-bar">
-                                            <div className="progress-fill rank-fill" style={{ width: `${Math.min(100, (rating / 2400) * 100)}%` }}></div>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div className="profile-progress-item">
+                            <div className="profile-progress-head">
+                                <span>Activity Level</span>
+                                <strong>{matchesPlayed + practiceSolved} total actions</strong>
                             </div>
-
-                            
-                            <div className="stat-card bw">
-                                <div className="stat-icon-wrapper">
-                                    <FontAwesomeIcon icon={faBullseye} className="stat-icon" />
-                                </div>
-                                <div className="stat-content">
-                                    <h3 className="stat-value">{matchesWon}</h3>
-                                    <p className="stat-label">Battles Won</p>
-                                    <div className="stat-progress">
-                                        <div className="progress-bar">
-                                            <div className="progress-fill wins-fill" style={{ width: `${matchesPlayed > 0 ? (matchesWon / matchesPlayed) * 100 : 0}%` }}></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            
-                            <div className="stat-card wr">
-                                <div className="stat-icon-wrapper">
-                                    <FontAwesomeIcon icon={faBolt} className="stat-icon" />
-                                </div>
-                                <div className="stat-content">
-                                    <h3 className="stat-value">{winRate}%</h3>
-                                    <p className="stat-label">Win Rate</p>
-                                    <div className="stat-progress">
-                                        <div className="progress-bar">
-                                            <div className="progress-fill rate-fill" style={{ width: `${winRate}%` }}></div>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="profile-progress-track">
+                                <div className="profile-progress-fill tone-pink" style={{ width: `${activityProgress}%` }} />
                             </div>
                         </div>
-                    </section>
-                </div> 
 
-                
-                <div className="right-column">
-                    <section className="progress-section card">
-                        <div className="section-header">
-                            <h2 className="section-title">
-                                <FontAwesomeIcon icon={faChartBar} className="title-icon" />
-                                Your Progress
-                            </h2>
-                            <p className="section-subtitle">Keep pushing your limits!</p>
+                        <div className="profile-progress-item">
+                            <div className="profile-progress-head">
+                                <span>Practice Mastery</span>
+                                <strong>{practiceSolved} solved</strong>
+                            </div>
+                            <div className="profile-progress-track">
+                                <div className="profile-progress-fill tone-violet" style={{ width: `${practiceProgress}%` }} />
+                            </div>
                         </div>
 
-                        <div className="progress-items">
-                            <div className="progress-item">
-                                <div className="progress-item-header">
-                                    <h4 className="progress-item-title">Total Battles</h4>
-                                    <span className="progress-item-value">{matchesPlayed}</span>
-                                </div>
-                                <div className="progress-bar-lg">
-                                    <div className="progress-fill total-challenges-fill" style={{ width: `${Math.min(100, matchesPlayed * 2)}%` }}></div>
-                                </div>
+                        <div className="profile-progress-item">
+                            <div className="profile-progress-head">
+                                <span>Consistency</span>
+                                <strong>{winRate}% win rate</strong>
                             </div>
-
-                            <div className="progress-item">
-                                <div className="progress-item-header">
-                                    <h4 className="progress-item-title">Battles Won</h4>
-                                    <span className="progress-item-value">{matchesWon}</span>
-                                </div>
-                                <div className="progress-bar-lg">
-                                    <div className="progress-fill skill-mastery-fill" style={{ width: `${matchesPlayed > 0 ? (matchesWon / matchesPlayed) * 100 : 0}%` }}></div>
-                                </div>
+                            <div className="profile-progress-track">
+                                <div className="profile-progress-fill tone-green" style={{ width: `${consistencyProgress}%` }} />
                             </div>
-
-                            <div className="progress-item">
-                                <div className="progress-item-header">
-                                    <h4 className="progress-item-title">Win Rate</h4>
-                                    <span className="progress-item-value">{winRate}%</span>
-                                </div>
-                                <div className="progress-bar-lg">
-                                    <div className="progress-fill next-rank-fill" style={{ width: `${winRate}%` }}></div>
-                                </div>
-                            </div>
-
-                            <div className="progress-item">
-                                <div className="progress-item-header">
-                                    <h4 className="progress-item-title">Rating Progress</h4>
-                                    <span className="progress-item-value">{rating} / 2400</span>
-                                </div>
-                                <div className="progress-bar-lg">
-                                    <div className="progress-fill weekly-streak-fill" style={{ width: `${Math.min(100, (rating / 2400) * 100)}%` }}></div>
-                                </div>
-                            </div>
-                            
-                        </div>
-                    </section>
-                </div> 
-
-                
-                <section className="achievement-section">
-                    <h2 className="achievement-heading">Achievements</h2>
-
-                    <div className="achievement-container">
-                        <div className="achievement-card">
-                        <img src={Rapid} alt="Rapid Coder" className="achievement-icon" />
-                        <h3 className="achievement-title">Rapid Coder</h3>
-                        <p className="achievement-description">
-                            Completed 10 coding challenges in 1 day.
-                        </p>
-                        <span className="achievement-rarity rare">Rare</span>
-                        </div>
-
-                        <div className="achievement-card">
-                        <img src={Nutcracker} alt="Nut Cracker" className="achievement-icon" />
-                        <h3 className="achievement-title">Good Coding Skills</h3>
-                        <p className="achievement-description">
-                            Most hard coding problems solved in a day.
-                        </p>
-                        <span className="achievement-rarity epic">Epic</span>
                         </div>
                     </div>
-                </section>
+                </article>
 
-            </main>
+                <article className="profile-panel">
+                    <div className="profile-panel-head">
+                        <h2>Achievements</h2>
+                        <span className="profile-chip">Milestones</span>
+                    </div>
+
+                    <ul className="profile-achievement-list">
+                        {achievements.map((achievement) => (
+                            <li key={achievement.title} className={achievement.unlocked ? 'is-unlocked' : ''}>
+                                <div className="achievement-left">
+                                    <div className="achievement-icon">
+                                        <FontAwesomeIcon icon={achievement.icon} />
+                                    </div>
+                                    <div>
+                                        <h4>{achievement.title}</h4>
+                                        <p>{achievement.description}</p>
+                                    </div>
+                                </div>
+
+                                <span className="achievement-status">
+                                    <FontAwesomeIcon icon={achievement.unlocked ? faCheckCircle : faMedal} />
+                                    {achievement.unlocked ? 'Unlocked' : 'Locked'}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                </article>
+            </section>
         </div>
     );
 }

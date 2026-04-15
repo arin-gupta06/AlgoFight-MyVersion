@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import "./Signup.css";
 import { motion } from "framer-motion";
-import {Logo} from "../NavBar/NavBar.jsx";
 import { Link, useNavigate } from "react-router-dom";
 import { googleSignIn, githubSignIn } from '../../firebaseConfig.js';
 import { GoogleImage, GithubImage } from "../Login/Login.jsx";
 import { useAuth } from "../../contexts/AuthContext";
+import { useNotification } from "../../contexts/NotificationContext.jsx";
 
 function Signup() {
   const [userName, setUserName] = useState("");
@@ -16,6 +16,7 @@ function Signup() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { notify } = useNotification();
 
   useEffect(() => {
     if (user) navigate("/home");
@@ -48,26 +49,50 @@ function Signup() {
     setUserName("");
     setUserPass("");
     setConfirmPass("");
+
+    notify({
+      type: "info",
+      title: "Use Social Sign-Up",
+      message: "Direct username and password signup is not active yet. Please continue with Google or GitHub.",
+    });
   };
   
    const googleAuthHandler = async() => {
-    const result = await googleSignIn();
-    const user = result ? result.user : null;
+    try {
+      const result = await googleSignIn();
+      if (result?.notice) notify(result.notice);
 
-    if(user) {
-      navigate("/home");
-      setIsSubmitted(true)
-    };
+      const signedUser = result ? result.user : null;
+      if(signedUser) {
+        navigate("/home");
+        setIsSubmitted(true);
+      }
+    } catch (error) {
+      notify({
+        type: "error",
+        title: "Sign-Up Failed",
+        message: "Something went wrong while signing in with Google.",
+      });
+    }
   }
 
   const githubAuthHandler = async() => {
-    const result = await githubSignIn();
-    const user = result ? result.user : null;
+    try {
+      const result = await githubSignIn();
+      if (result?.notice) notify(result.notice);
 
-    if(user) {
-      navigate("/home");
-      setIsSubmitted(true)
-    };
+      const signedUser = result ? result.user : null;
+      if(signedUser) {
+        navigate("/home");
+        setIsSubmitted(true);
+      }
+    } catch (error) {
+      notify({
+        type: "error",
+        title: "Sign-Up Failed",
+        message: "Something went wrong while signing in with GitHub.",
+      });
+    }
   }
 
   return (
@@ -81,40 +106,43 @@ function Signup() {
       <form className="Signup-Container" onSubmit={handleSignUpSubmit}>
 
         <div className="Signup-Header">
-            <img src={Logo} alt="Logo" className="signup-logo" />
             <h1>Create Account</h1>
         </div>
 
 
         <div className="Signup-Form-Options">
-          <input
-            type="text"
-            placeholder="Username"
-            value={userName}
-            onChange={(e) => setUserName(e.target.value)}
-          />
-          {userNameError && <p className="error-text">{userNameError}</p>}
+          <div className="input-group">
+            <input
+              type="text"
+              placeholder="Username"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+            />
+            <p className="error-text">{userNameError || '\u00A0'}</p>
+          </div>
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={userPass}
-            onChange={(e) => setUserPass(e.target.value)}
-          />
-          {userPassError && <p className="error-text">{userPassError}</p>}
+          <div className="input-group">
+            <input
+              type="password"
+              placeholder="Password"
+              value={userPass}
+              onChange={(e) => setUserPass(e.target.value)}
+            />
+            <p className="error-text">{userPassError || '\u00A0'}</p>
+          </div>
 
-          <input
-            type="password"
-            placeholder="Confirm Password"
-            value={confirmPass}
-            onChange={(e) => setConfirmPass(e.target.value)}
-          />
-          {isSubmitted && confirmPass === "" && (
-            <p className="error-text">Confirm password cannot be empty</p>
-          )}
-          {isSubmitted && confirmPass !== userPass && confirmPass !== "" && (
-            <p className="error-text">Passwords do not match</p>
-          )}
+          <div className="input-group">
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              value={confirmPass}
+              onChange={(e) => setConfirmPass(e.target.value)}
+            />
+            <p className="error-text">
+              {(isSubmitted && confirmPass === "") ? "Confirm password cannot be empty" : 
+               (isSubmitted && confirmPass !== userPass && confirmPass !== "") ? "Passwords do not match" : '\u00A0'}
+            </p>
+          </div>
 
         <p>Already have an account?</p>
         <Link to="/" className="Login-link">Login</Link>

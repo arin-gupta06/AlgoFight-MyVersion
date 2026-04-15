@@ -5,18 +5,18 @@ import { motion } from 'framer-motion';
 import GoogleImage from './Google.png';
 import GithubImage from './Github.png';
 import { googleSignIn, githubSignIn } from '../../firebaseConfig.js';
-import {Logo} from "../NavBar/NavBar.jsx";
 import {useNavigate} from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext.jsx';
+import { useNotification } from '../../contexts/NotificationContext.jsx';
 
 function Login(){
     const [userName, setUserName] = useState("");
     const [userPass, setUserPass] = useState("");
     const [userNameError, setUserNameError] = useState("");
     const [userPassError, setUserPassError] = useState("");
-    const [isSubmitted, setIsSubmitted] = useState(false);
     const navigate = useNavigate();
     const { user } = useAuth();
+  const { notify } = useNotification();
 
     // If already logged in, redirect to home
     useEffect(() => {
@@ -46,26 +46,48 @@ function Login(){
         console.log(userName, userPass);
         setUserName("");
         setUserPass("");
+        notify({
+          type: "info",
+          title: "Use Social Sign-In",
+          message: "Username and password login is not wired yet. Please continue with Google or GitHub.",
+        });
         // Note: username/password login is not yet wired to a backend endpoint.
         // Use Google or GitHub sign-in for now.
     }
     const googleAuthHandler = async() => {
-        const result = await googleSignIn();
-        const user = result ? result.user : null;
-    
-        if(user) {
-          navigate("/home");
-        };
+        try {
+          const result = await googleSignIn();
+          if (result?.notice) notify(result.notice);
+
+          const signedUser = result ? result.user : null;
+          if(signedUser) {
+            navigate("/home");
+          }
+        } catch (error) {
+          notify({
+            type: "error",
+            title: "Sign-In Failed",
+            message: "Something went wrong while signing in with Google.",
+          });
+        }
       }
     
       const githubAuthHandler = async() => {
-        const result = await githubSignIn();
-        const user = result ? result.user : null;
-    
-        if(user) {
-          navigate("/home");
-          setIsSubmitted(true)
-        };
+        try {
+          const result = await githubSignIn();
+          if (result?.notice) notify(result.notice);
+
+          const signedUser = result ? result.user : null;
+          if(signedUser) {
+            navigate("/home");
+          }
+        } catch (error) {
+          notify({
+            type: "error",
+            title: "Sign-In Failed",
+            message: "Something went wrong while signing in with GitHub.",
+          });
+        }
       }
 
     return (
@@ -79,27 +101,29 @@ function Login(){
             <form className="Login-Container" onSubmit={handleSubmit}>
                 
                 <div className="Login-Header">
-                    <img src={Logo} alt="Logo" className="signup-logo" />
                     <h2>Welcome to Algo Fight</h2>
                 
                 </div>
 
-                <input 
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Username"
-                />
-                {userNameError && <p className="error-message">{userNameError}</p>}
+                <div className="input-group">
+                  <input 
+                  type="text"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder="Username"
+                  />
+                  <p className="error-message">{userNameError || '\u00A0'}</p>
+                </div>
 
-                <input 
-                type="password"
-                value={userPass}
-                onChange={(e) => setUserPass(e.target.value)}
-                placeholder="Password"
-                />
-                
-                {userPassError && <p className="error-message">{userPassError}</p>}
+                <div className="input-group">
+                  <input 
+                  type="password"
+                  value={userPass}
+                  onChange={(e) => setUserPass(e.target.value)}
+                  placeholder="Password"
+                  />
+                  <p className="error-message">{userPassError || '\u00A0'}</p>
+                </div>
                 <p>Don't have an account?</p>
                 <Link to="/signup" className="signup-link">Sign Up</Link>
                 <div className="Login-Separator">OR</div>

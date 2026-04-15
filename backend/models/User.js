@@ -44,6 +44,18 @@ const UserSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    practiceSolvedCount: {
+        type: Number,
+        default: 0
+    },
+    practiceSubmissionCount: {
+        type: Number,
+        default: 0
+    },
+    practiceSolvedProblemIds: {
+        type: [String],
+        default: []
+    },
     createdAt: {
         type: Date,
         default: Date.now

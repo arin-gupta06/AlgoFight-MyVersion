@@ -1,115 +1,281 @@
 import React from 'react';
-import './Rewards.css'; 
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import {
+    faArrowTrendUp,
+    faBolt,
+    faBriefcase,
+    faCheckCircle,
+    faCode,
+    faGift,
+    faLaptopCode,
+    faMedal,
+    faRocket,
+    faStar,
+    faTicket,
+} from '@fortawesome/free-solid-svg-icons';
+import './Rewards.css';
+
+const arenaPoints = 1847;
+
+const rankTiers = [
+    { label: 'Novice', minPoints: 0 },
+    { label: 'Warrior', minPoints: 500 },
+    { label: 'Expert', minPoints: 1000 },
+    { label: 'Master', minPoints: 3000 },
+    { label: 'Grandmaster', minPoints: 5000 },
+];
+
+const rewardCatalog = [
+    {
+        title: 'Amazon Gift Cards',
+        description: 'Redeem credits from $10 to $500 and use them for books, gear, or software.',
+        category: 'Marketplace',
+        cost: 1000,
+        status: 'redeem',
+        cta: 'Redeem Now',
+        icon: faGift,
+        tone: 'pink',
+    },
+    {
+        title: 'Hackathon Entry Pass',
+        description: 'Get sponsored entries to paid hackathons and coding competitions.',
+        category: 'Competition',
+        cost: 1500,
+        status: 'redeem',
+        cta: 'Redeem Now',
+        icon: faTicket,
+        tone: 'cyan',
+    },
+    {
+        title: 'Premium Coding Tools',
+        description: 'Unlock access to advanced IDE features and curated productivity toolkits.',
+        category: 'Productivity',
+        cost: 2500,
+        status: 'locked',
+        cta: 'Need More Points',
+        icon: faLaptopCode,
+        tone: 'blue',
+    },
+    {
+        title: 'Tech Internship Track',
+        description: 'Priority shortlisting for internship opportunities with partner companies.',
+        category: 'Career',
+        cost: 5000,
+        status: 'locked',
+        cta: 'Need More Points',
+        icon: faBriefcase,
+        tone: 'orange',
+    },
+    {
+        title: 'Course Subscription Vault',
+        description: 'Unlock premium courses in DSA, system design, and interview prep.',
+        category: 'Learning',
+        cost: 3000,
+        status: 'coming-soon',
+        cta: 'Coming Soon',
+        icon: faCode,
+        tone: 'violet',
+    },
+    {
+        title: 'Hardware Rewards Drop',
+        description: 'Mechanical keyboards, monitors, and streaming gear for top performers.',
+        category: 'Hardware',
+        cost: 7500,
+        status: 'coming-soon',
+        cta: 'Coming Soon',
+        icon: faRocket,
+        tone: 'teal',
+    },
+];
+
+const earnSources = [
+    { label: 'Win live battle', points: '+120', icon: faBolt },
+    { label: 'Complete daily challenge', points: '+75', icon: faStar },
+    { label: 'Solve hard practice problem', points: '+50', icon: faCode },
+    { label: '7-day activity streak', points: '+200', icon: faArrowTrendUp },
+];
+
+const recentRedeems = [
+    { title: 'Hackathon Entry Pass', time: '2 days ago', points: '-1500' },
+    { title: 'Amazon Gift Card ($10)', time: '8 days ago', points: '-1000' },
+];
+
+const numberFormatter = new Intl.NumberFormat('en-US');
+
+function getRewardStatusLabel(status) {
+    if (status === 'redeem') return 'Available';
+    if (status === 'locked') return 'Locked';
+    return 'Coming Soon';
+}
 
 function Rewards() {
+    const currentTierIndex = rankTiers.reduce((bestIndex, tier, index) => {
+        if (arenaPoints >= tier.minPoints) return index;
+        return bestIndex;
+    }, 0);
+
+    const currentTier = rankTiers[currentTierIndex];
+    const nextTier = rankTiers[currentTierIndex + 1] || rankTiers[currentTierIndex];
+
+    const progressToNext =
+        nextTier.minPoints === currentTier.minPoints
+            ? 100
+            : Math.min(
+                    100,
+                    ((arenaPoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
+                );
+
+    const pointsToNextTier = Math.max(0, nextTier.minPoints - arenaPoints);
+    const redeemableCount = rewardCatalog.filter((reward) => reward.status === 'redeem').length;
+
     return (
-        <div className="container">
-            <header>
-                <div className="header-left">
-                    <h1>Rewards & Recognition</h1>
-                    <p>Earn points through battles and redeem exclusive rewards</p>
-                </div>
-                <div className="header-right">
-                    
-                </div>
-            </header>
+        <div className="rewards-page">
+            <section className="rewards-hero">
+                <div className="pre-heading">REWARDS AND RECOGNITION</div>
+                <h1>
+                    Redeem <span className="text-cyan">Skills</span> Into Real Rewards
+                </h1>
+                <p>
+                    Earn points in battles, unlock higher ranks, and claim curated rewards designed for competitive coders.
+                </p>
+            </section>
 
-            <main>
-                <div className="main-content">
-                    <section className="your-arena-points card">
-                        <h2>Your Arena Points</h2>
-                        <p className="points">1,847 <span>points</span></p>
-                        
-                    </section>
+            <section className="rewards-kpi-grid">
+                <article className="rewards-kpi-card">
+                    <div className="kpi-label">Arena Points</div>
+                    <div className="kpi-value">{numberFormatter.format(arenaPoints)}</div>
+                    <div className="kpi-footnote">Current spendable balance</div>
+                </article>
 
-                    <section className="available-rewards">
+                <article className="rewards-kpi-card">
+                    <div className="kpi-label">Current Rank</div>
+                    <div className="kpi-value">{currentTier.label}</div>
+                    <div className="kpi-footnote">{pointsToNextTier} points to {nextTier.label}</div>
+                </article>
+
+                <article className="rewards-kpi-card">
+                    <div className="kpi-label">Rewards Ready</div>
+                    <div className="kpi-value">{redeemableCount}</div>
+                    <div className="kpi-footnote">Items available to redeem now</div>
+                </article>
+            </section>
+
+            <div className="rewards-layout">
+                <section className="rewards-main-panel">
+                    <div className="panel-headline-row">
                         <h2>Available Rewards</h2>
-                        <div className="rewards-grid">
-                            <div className="reward-card card">
-                                <div className="reward-icon">🎁</div>
-                                <h3>Amazon Gift Cards</h3>
-                                <p>Redeem your points for Amazon gift cards ranging from $10 to $500</p>
-                                <p className="cost">1,000 points</p>
-                                <button className="redeem-btn">Redeem</button>
-                            </div>
+                        <span className="panel-pill">Updated Weekly</span>
+                    </div>
 
-                            <div className="reward-card card">
-                                <div className="reward-icon">🛠️</div>
-                                <h3>Premium Coding Tools</h3>
-                                <p>Access to premium IDEs, GitHub Copilot, and other development tools</p>
-                                <p className="cost">2,500 points</p>
-                                <button className="more-info-btn">Need More Points</button>
-                            </div>
+                    <div className="rewards-grid">
+                        {rewardCatalog.map((reward) => (
+                            <article
+                                key={reward.title}
+                                className={`reward-card status-${reward.status}`}
+                            >
+                                <div className="reward-card-top">
+                                    <div className={`reward-icon tone-${reward.tone}`}>
+                                        <FontAwesomeIcon icon={reward.icon} />
+                                    </div>
+                                    <span className="reward-category">{reward.category}</span>
+                                </div>
 
-                            <div className="reward-card card">
-                                <div className="reward-icon">💼</div>
-                                <h3>Tech Internships</h3>
-                                <p>Exclusive internship opportunities at top tech companies</p>
-                                <p className="cost">5,000 points</p>
-                                <button className="more-info-btn">Need More Points</button>
-                            </div>
+                                <h3>{reward.title}</h3>
+                                <p>{reward.description}</p>
 
-                            <div className="reward-card card">
-                                <div className="reward-icon">🏆</div>
-                                <h3>Hackathon Entries</h3>
-                                <p>Free entries to premium hackathons and coding competitions</p>
-                                <p className="cost">1,500 points</p>
-                                <button className="redeem-btn">Redeem</button>
-                            </div>
+                                <div className="reward-meta-row">
+                                    <span className="reward-cost">{numberFormatter.format(reward.cost)} points</span>
+                                    <span className={`reward-status reward-status-${reward.status}`}>
+                                        {getRewardStatusLabel(reward.status)}
+                                    </span>
+                                </div>
 
-                            <div className="reward-card card coming-soon">
-                                <div className="reward-icon">📚</div>
-                                <h3>Course Subscriptions</h3>
-                                <p>Premium access to coding courses and learning platforms</p>
-                                <p className="cost">3,000 points</p>
-                                <button className="coming-soon-btn">Coming Soon</button>
-                            </div>
+                                <button
+                                    className={`reward-action reward-action-${reward.status}`}
+                                    type="button"
+                                >
+                                    {reward.cta}
+                                </button>
+                            </article>
+                        ))}
+                    </div>
+                </section>
 
-                            <div className="reward-card card coming-soon">
-                                <div className="reward-icon">⚡</div>
-                                <h3>Hardware Prizes</h3>
-                                <p>Gaming keyboards, monitors, and other tech hardware</p>
-                                <p className="cost">7,500 points</p>
-                                <button className="coming-soon-btn">Coming Soon</button>
-                            </div>
+                <aside className="rewards-side-column">
+                    <section className="rewards-side-card">
+                        <div className="side-card-header">
+                            <h2>Progress Path</h2>
+                            <span>{Math.round(progressToNext)}%</span>
                         </div>
-                    </section>
-                </div>
 
-                <aside className="sidebar">
-                    <section className="progress-path card">
-                        <h2>Progress Path</h2>
-                        <div className="master-rank">
-                            <p>Master Rank <span>23%</span></p>
-                            <div className="progress-bar">
-                                <div className="progress-fill" style={{ width: '23%' }}></div> 
-                            </div>
-                            <p>1153 points to Master</p>
+                        <div className="tier-rail">
+                            <span>{currentTier.label}</span>
+                            <span>{nextTier.label}</span>
                         </div>
-                        <ul>
-                            <li>Novice ✅<span>0 points</span></li>
-                            <li>Warrior ✅<span>500 points</span></li>
-                            <li>Expert ✅ <span>1,000 points</span></li>
-                            <li>Master <span>3,000 points</span></li>
-                            <li>Grandmaster <span>5,000 points</span></li>
+
+                        <div className="tier-progress-track">
+                            <div className="tier-progress-fill" style={{ width: `${progressToNext}%` }} />
+                        </div>
+
+                        <p className="tier-progress-copy">
+                            {pointsToNextTier > 0
+                                ? `${pointsToNextTier} points to reach ${nextTier.label}`
+                                : 'Top rank unlocked'}
+                        </p>
+
+                        <ul className="tier-list">
+                            {rankTiers.map((tier, index) => {
+                                const isComplete = arenaPoints >= tier.minPoints;
+                                const isCurrent = index === currentTierIndex;
+
+                                return (
+                                    <li key={tier.label} className={isCurrent ? 'tier-current' : ''}>
+                                        <div className="tier-left">
+                                            <FontAwesomeIcon icon={isComplete ? faCheckCircle : faMedal} />
+                                            <span>{tier.label}</span>
+                                        </div>
+                                        <span className="tier-points">{numberFormatter.format(tier.minPoints)}</span>
+                                    </li>
+                                );
+                            })}
                         </ul>
                     </section>
 
-                    <section className="earn-points card">
-                        <h2>Earn Points</h2>
-                        <ul>
-                            Not Yet Decided
+                    <section className="rewards-side-card">
+                        <h2>How To Earn Points</h2>
+                        <ul className="earn-list">
+                            {earnSources.map((source) => (
+                                <li key={source.label}>
+                                    <div className="earn-left">
+                                        <FontAwesomeIcon icon={source.icon} />
+                                        <span>{source.label}</span>
+                                    </div>
+                                    <span className="earn-points">{source.points}</span>
+                                </li>
+                            ))}
                         </ul>
                     </section>
 
-                    <section className="recent-redeems card">
+                    <section className="rewards-side-card">
                         <h2>Recent Redeems</h2>
-                        <ul>
-                            None
+                        <ul className="redeem-list">
+                            {recentRedeems.length > 0 ? (
+                                recentRedeems.map((redeem) => (
+                                    <li key={`${redeem.title}-${redeem.time}`}>
+                                        <div className="redeem-left">
+                                            <span>{redeem.title}</span>
+                                            <small>{redeem.time}</small>
+                                        </div>
+                                        <span className="redeem-cost">{redeem.points}</span>
+                                    </li>
+                                ))
+                            ) : (
+                                <li className="redeem-empty">No recent rewards redeemed.</li>
+                            )}
                         </ul>
                     </section>
                 </aside>
-            </main>
+            </div>
         </div>
     );
 }

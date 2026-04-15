@@ -1,5 +1,6 @@
 import React from 'react';
-import { Routes, Route, Outlet } from 'react-router-dom';
+import { Routes, Route, Outlet, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
 
 import('@dimforge/rapier3d-compat'); 
 
@@ -13,8 +14,10 @@ import Profile from './components/Profile/Profile.jsx';
 import LiveBattle from './components/Battle/LiveBattle.jsx';
 import Leaderboard from './components/Leaderboard/Leaderboard.jsx';
 import About from './components/About/About.jsx';
+import Developer from './components/Developer/Developer.jsx';
 import BattleArena from './components/Battle/BattleArena.jsx';
 import Practice from './components/Practice/Practice.jsx';
+import PracticeWorkspace from './components/Practice/PracticeWorkspace.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // 📌 Auth layout (no NavBar or Squares)
@@ -33,9 +36,11 @@ function MainLayout() {
 }
 
 function App() {
-  return (
-    <Routes>
+  const location = useLocation();
 
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
       {/* ================= Auth Routes ================= */}
       <Route element={<AuthLayout />}>
         <Route path="/" element={<Login />} />
@@ -52,12 +57,15 @@ function App() {
         <Route path="/battle" element={<ProtectedRoute><BattleArena /></ProtectedRoute>} />
         <Route path="/battle/live" element={<ProtectedRoute><LiveBattle /></ProtectedRoute>} />
         <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
+        <Route path="/practice/:problemId" element={<ProtectedRoute><PracticeWorkspace /></ProtectedRoute>} />
 
         <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+        <Route path="/developer" element={<ProtectedRoute><Developer /></ProtectedRoute>} />
         <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
       </Route>
 
-    </Routes>
+      </Routes>
+    </AnimatePresence>
   );
 }
 

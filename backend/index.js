@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const vm = require("vm");
 const mongoose = require("mongoose");
+const { executeCode: executeCodeDocker } = require('./src/services/submissionService');
 
 // ─── Models ─────────────────────────────────────────────
 const User = require("./models/User");
@@ -370,7 +371,10 @@ app.post("/api/users", async (req, res) => {
         email: user.email,
         rating: user.rating,
         matchesPlayed: user.matchesPlayed,
-        matchesWon: user.matchesWon
+        matchesWon: user.matchesWon,
+        practiceSolvedCount: user.practiceSolvedCount || 0,
+        practiceSubmissionCount: user.practiceSubmissionCount || 0,
+        practiceSolvedProblemIds: user.practiceSolvedProblemIds || []
       }
     });
   } catch (err) {
@@ -390,6 +394,56 @@ app.get("/api/users/:uid", async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// Record practice submission progress for a user
+app.post("/api/users/:uid/practice-progress", async (req, res) => {
+  const { uid } = req.params;
+  const { problemId, passed } = req.body;
+
+  try {
+    const user = await User.findOne({ firebaseUid: uid });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    user.practiceSubmissionCount = Number(user.practiceSubmissionCount || 0) + 1;
+
+    let newlySolved = false;
+    if (passed && problemId) {
+      const solvedIds = Array.isArray(user.practiceSolvedProblemIds)
+        ? user.practiceSolvedProblemIds.map((id) => String(id))
+        : [];
+
+      if (!solvedIds.includes(String(problemId))) {
+        solvedIds.push(String(problemId));
+        newlySolved = true;
+      }
+
+      user.practiceSolvedProblemIds = solvedIds;
+      user.practiceSolvedCount = solvedIds.length;
+    }
+
+    if (!passed) {
+      user.practiceSolvedCount = Number(user.practiceSolvedCount || 0);
+    }
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Practice progress updated",
+      progress: {
+        practiceSolvedCount: user.practiceSolvedCount || 0,
+        practiceSubmissionCount: user.practiceSubmissionCount || 0,
+        practiceSolvedProblemIds: user.practiceSolvedProblemIds || []
+      },
+      newlySolved
+    });
+  } catch (err) {
+    console.error("Practice progress update error:", err.message);
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
@@ -557,6 +611,54 @@ function buildEvaluationSuites(problem) {
     hiddenCases,
     edgeCases,
     submissionCases
+  };
+}
+
+async function executeCodeAsync(userCode, language, testCases, options = {}) {
+  const { revealHiddenDetails = true } = options;
+  if (!language || language === "javascript" || language === "javascript(vm)" || language === "js") {
+    return executeCode(userCode, testCases, options);
+  }
+
+  const safeTestCases = Array.isArray(testCases) ? testCases : [];
+  if (safeTestCases.length === 0) {
+    return { passed: false, totalTestCases: 0, passedTestCases: 0, failedCases: [], executionTime: 0, output: "No test cases." };
+  }
+
+  const failures = [];
+  let passedCases = 0;
+  let totalTime = 0;
+
+  for (let i = 0; i < safeTestCases.length; i++) {
+    const currentCase = safeTestCases[i];
+    const caseVisibility = currentCase.visibility || "hidden";
+    const expectedValue = currentCase.output ?? currentCase.expected ?? currentCase.expectedOutput;
+    const expectedStr = String(expectedValue).trim();
+
+    const { output, executionTime, error } = await executeCodeDocker(userCode, language, currentCase.input);
+    totalTime += executionTime;
+
+    const actualStr = String(output).trim().replace(/\r\n/g, '\n');
+    const expStr = expectedStr.replace(/\r\n/g, '\n');
+
+    if (error === 'TLE') {
+      failures.push({ index: i + 1, visibility: caseVisibility, input: currentCase.input, expected: expectedValue, actual: "N/A", reason: "Time Limit Exceeded" });
+    } else if (error) {
+      failures.push({ index: i + 1, visibility: caseVisibility, input: currentCase.input, expected: expectedValue, actual: "N/A", reason: "Runtime Error" });
+    } else if (actualStr !== expStr) {
+      failures.push({ index: i + 1, visibility: caseVisibility, input: currentCase.input, expected: expectedValue, actual: output, reason: "Wrong Answer" });
+    } else {
+      passedCases++;
+    }
+  }
+
+  return {
+    passed: passedCases === safeTestCases.length,
+    totalTestCases: safeTestCases.length,
+    passedTestCases: passedCases,
+    failedCases: failures,
+    executionTime: totalTime,
+    output: failures.length > 0 ? failures[0].reason : "All test cases passed!"
   };
 }
 
@@ -888,8 +990,8 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("test_code", (data) => {
-    const { code, roomId } = data;
+  socket.on("test_code", async (data) => {
+    const { code, language, roomId } = data;
     const battle = activeBattles[roomId];
 
     if (!battle) {
@@ -901,12 +1003,12 @@ io.on("connection", (socket) => {
       ? suites.sampleCases
       : suites.submissionCases.slice(0, Math.min(2, suites.submissionCases.length));
 
-    const result = executeCode(code, sampleCases, { revealHiddenDetails: true });
+    const result = await executeCodeAsync(code, language, sampleCases, { revealHiddenDetails: true });
     socket.emit("code_result", { result });
   });
 
   socket.on("submit_code", async (data) => {
-    const { code, roomId } = data;
+    const { code, language, roomId } = data;
     const battle = activeBattles[roomId];
 
     if (!battle) {
@@ -934,7 +1036,7 @@ io.on("connection", (socket) => {
     }
 
     console.log(`Code received from ${socket.username}. Executing hidden + edge + sample suites...`);
-    const result = executeCode(code, submissionCases, { revealHiddenDetails: false });
+    const result = await executeCodeAsync(code, language, submissionCases, { revealHiddenDetails: false });
     socket.emit("code_result", { result });
 
     socket.emit("submission_result", {

@@ -32,7 +32,7 @@ export async function fetchUserProfile(uid) {
 /**
  * Fetch practice problems only.
  */
-export async function fetchPracticeProblems({ page = 1, limit = 50, difficulty = "" } = {}) {
+export async function fetchPracticeProblems({ page = 1, limit = 50, difficulty = "", tags = "" } = {}) {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
@@ -41,6 +41,9 @@ export async function fetchPracticeProblems({ page = 1, limit = 50, difficulty =
 
   if (difficulty) {
     params.set("difficulty", difficulty);
+  }
+  if (tags) {
+    params.set("tags", tags);
   }
 
   const res = await fetch(`${API_URL}/api/problems?${params.toString()}`);
@@ -58,6 +61,23 @@ export async function fetchProblemById(problemId) {
   if (!res.ok) {
     throw new Error("Failed to fetch problem");
   }
+  return res.json();
+}
+
+/**
+ * Record a practice submission for the current user.
+ */
+export async function recordPracticeProgress({ uid, problemId, passed }) {
+  const res = await fetch(`${API_URL}/api/users/${uid}/practice-progress`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ problemId, passed }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to update practice progress");
+  }
+
   return res.json();
 }
 

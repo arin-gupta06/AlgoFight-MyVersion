@@ -1,57 +1,56 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './Navbar.css';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBars, faXmark } from '@fortawesome/free-solid-svg-icons';
-import Logo from './Logo.png';
-import { Link, useNavigate } from 'react-router-dom';
+import { faCode } from '@fortawesome/free-solid-svg-icons';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import logoIcon from '../../assets/algofight-logo.png';
 
 const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-
-  const toggleNavbar = () => {
-    setIsOpen(!isOpen);
-  };
+  const location = useLocation();
 
   const handleLogout = async () => {
     await logout();
     navigate("/");
   };
 
+  const isActive = (path) => {
+    return location.pathname === path ? 'active-link' : '';
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-container">
-        <div className="navbar-logo">
-          <img src={Logo} alt="Company Logo" className="logo-img" />
-        </div>
+        <Link to="/home" className="navbar-brand">
+          <img src={logoIcon} alt="AlgoFight Logo" className="brand-logo-img" />
+        </Link>
 
-        <div className={`navbar-links ${isOpen ? 'open' : ''}`}>
-          <ul>
-            <li><Link to="/home">Home</Link></li>
-            <li><Link to="/battle">Battle</Link></li>
-            <li><Link to="/practice">Practice</Link></li>
-            <li><Link to="/leaderboard">Leaderboard</Link></li>
-            <li><Link to="/rewards">Rewards</Link></li>
-            <li><Link to="/profile">Profile</Link></li>
-            <li><Link to="/about">About</Link></li>
+        <div className="navbar-links">
+          <ul className="nav-menu">
+            <li><Link to="/practice" className={isActive('/practice')}>Practice</Link></li>
+            <li><Link to="/battle" className={isActive('/battle')}>Battle</Link></li>
+            <li><Link to="/leaderboard" className={isActive('/leaderboard')}>Leaderboard</Link></li>
+            <li><Link to="/rewards" className={isActive('/rewards')}>Rewards</Link></li>
+            <li><Link to="/about" className={isActive('/about')}>About</Link></li>
+            <li><Link to="/developer" className={isActive('/developer')}>Developers</Link></li>
           </ul>
         </div>
-        <div className='log-in-button'>
+        
+        <div className='navbar-actions'>
           {user ? (
-            <button onClick={handleLogout} style={{ background: "none", border: "1px solid #aaa", color: "#fff", padding: "0.4rem 1rem", borderRadius: "6px", cursor: "pointer" }}>
-              Logout
-            </button>
+             <div style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+               <Link to="/profile" style={{color: '#888', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500}}>Profile</Link>
+               <button onClick={handleLogout} className="btn-nav-outline">
+                 Logout
+               </button>
+             </div>
           ) : (
-            <Link to="/">Login</Link>
-          )}
-        </div>
-        <div className="navbar-toggle" onClick={toggleNavbar}>
-          {isOpen ? (
-            <FontAwesomeIcon icon={faXmark} className="toggle-icon" />
-          ) : (
-            <FontAwesomeIcon icon={faBars} className="toggle-icon" />
+            <div className="auth-buttons">
+              <Link to="/" className="nav-sign-in">Sign In</Link>
+              <Link to="/signup" className="nav-get-started">Get Started</Link>
+            </div>
           )}
         </div>
       </div>
@@ -60,4 +59,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-export {Logo};
