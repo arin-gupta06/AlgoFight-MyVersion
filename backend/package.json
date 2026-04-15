@@ -5,7 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "problems:dry-run": "node src/utils/importProblemsFromMarkdown.js --dry-run",
+    "problems:import": "node src/utils/importProblemsFromMarkdown.js",
+    "problems:replace": "node src/utils/importProblemsFromMarkdown.js --replace-existing",
+    "problems:rebalance": "node src/utils/applyBattlePracticeRatio.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -30,11 +30,12 @@ const Navbar = () => {
         <div className={`navbar-links ${isOpen ? 'open' : ''}`}>
           <ul>
             <li><Link to="/home">Home</Link></li>
-            <li><Link to="/Battle">Battle</Link></li>
-            <li><Link to="/Leaderboard">Leaderboard</Link></li>
-            <li><Link to="/Rewards">Rewards</Link></li>
-            <li><Link to="/Profile">Profile</Link></li>
-            <li><Link to="/About">About</Link></li>
+            <li><Link to="/battle">Battle</Link></li>
+            <li><Link to="/practice">Practice</Link></li>
+            <li><Link to="/leaderboard">Leaderboard</Link></li>
+            <li><Link to="/rewards">Rewards</Link></li>
+            <li><Link to="/profile">Profile</Link></li>
+            <li><Link to="/about">About</Link></li>
           </ul>
         </div>
         <div className='log-in-button'>

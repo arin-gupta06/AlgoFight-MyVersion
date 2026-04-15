@@ -14,6 +14,7 @@ import LiveBattle from './components/Battle/LiveBattle.jsx';
 import Leaderboard from './components/Leaderboard/Leaderboard.jsx';
 import About from './components/About/About.jsx';
 import BattleArena from './components/Battle/BattleArena.jsx';
+import Practice from './components/Practice/Practice.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // 📌 Auth layout (no NavBar or Squares)
@@ -50,6 +51,7 @@ function App() {
         {/* ✅ Battle Routes (Flat, not nested) */}
         <Route path="/battle" element={<ProtectedRoute><BattleArena /></ProtectedRoute>} />
         <Route path="/battle/live" element={<ProtectedRoute><LiveBattle /></ProtectedRoute>} />
+        <Route path="/practice" element={<ProtectedRoute><Practice /></ProtectedRoute>} />
 
         <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
         <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />

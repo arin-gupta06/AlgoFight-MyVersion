@@ -86,7 +86,7 @@ export default function LiveBattle() {
   const onSubmitCode = () => {
     if (!roomId) return;
     setRunning(true);
-    setOutput("Testing against all hidden cases...");
+    setOutput("Testing against hidden and edge cases...");
     socketRef.current.emit("submit_code", { code, roomId });
   };
 

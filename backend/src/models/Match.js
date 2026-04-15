@@ -1,6 +1,15 @@
 const mongoose = require('mongoose');
 
 const MatchSchema = new mongoose.Schema({
+    battleId: {
+        type: String,
+        default: null,
+        index: true
+    },
+    players: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
     player1: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -62,5 +71,18 @@ MatchSchema.index({ status: 1 });
 MatchSchema.index({ player1: 1 });
 MatchSchema.index({ player2: 1 });
 MatchSchema.index({ roomId: 1 });
+
+MatchSchema.pre('save', function syncPlayers(next) {
+    const players = [];
+    if (this.player1) players.push(this.player1);
+    if (this.player2) players.push(this.player2);
+    this.players = players;
+
+    if (!this.battleId && this.roomId) {
+        this.battleId = this.roomId;
+    }
+
+    next();
+});
 
 module.exports = mongoose.model('Match', MatchSchema);

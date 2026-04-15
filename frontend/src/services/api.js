@@ -29,4 +29,36 @@ export async function fetchUserProfile(uid) {
   return res.json();
 }
 
+/**
+ * Fetch practice problems only.
+ */
+export async function fetchPracticeProblems({ page = 1, limit = 50, difficulty = "" } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    mode: "practice",
+  });
+
+  if (difficulty) {
+    params.set("difficulty", difficulty);
+  }
+
+  const res = await fetch(`${API_URL}/api/problems?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch practice problems");
+  }
+  return res.json();
+}
+
+/**
+ * Fetch one problem with only public testcase data.
+ */
+export async function fetchProblemById(problemId) {
+  const res = await fetch(`${API_URL}/api/problems/${problemId}`);
+  if (!res.ok) {
+    throw new Error("Failed to fetch problem");
+  }
+  return res.json();
+}
+
 export { API_URL };

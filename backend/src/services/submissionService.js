@@ -8,6 +8,113 @@ const Problem = require('../models/Problem');
 const logger = require('../config/logger');
 
 const TEMP_DIR = path.join(__dirname, '../../../executor/temp');
+const CASE_VISIBILITY = Object.freeze({
+    SAMPLE: 'sample',
+    HIDDEN: 'hidden',
+    EDGE: 'edge'
+});
+
+const normalizeVisibility = (value, fallback = CASE_VISIBILITY.HIDDEN) => {
+    if (!value) return fallback;
+    const normalized = String(value).toLowerCase();
+
+    if (['sample', 'public', 'example'].includes(normalized)) return CASE_VISIBILITY.SAMPLE;
+    if (['edge', 'edgecase', 'edge_case', 'corner', 'cornercase'].includes(normalized)) return CASE_VISIBILITY.EDGE;
+    if (['hidden', 'private', 'secret'].includes(normalized)) return CASE_VISIBILITY.HIDDEN;
+
+    return fallback;
+};
+
+const resolveExpectedValue = (testCase = {}) => {
+    if (Object.prototype.hasOwnProperty.call(testCase, 'expected')) return testCase.expected;
+    if (Object.prototype.hasOwnProperty.call(testCase, 'expectedOutput')) return testCase.expectedOutput;
+    return undefined;
+};
+
+const normalizeTestCase = (testCase, defaultVisibility) => {
+    if (!testCase || typeof testCase !== 'object') return null;
+
+    const expected = resolveExpectedValue(testCase);
+    if (typeof expected === 'undefined') return null;
+
+    const visibility = normalizeVisibility(
+        testCase.visibility || testCase.caseType || testCase.category || testCase.type || (testCase.isHidden ? 'hidden' : undefined),
+        defaultVisibility
+    );
+
+    return {
+        input: testCase.input,
+        expected,
+        visibility
+    };
+};
+
+const normalizeCaseList = (list, defaultVisibility) => {
+    if (!Array.isArray(list)) return [];
+    return list.map((testCase) => normalizeTestCase(testCase, defaultVisibility)).filter(Boolean);
+};
+
+const dedupeCases = (cases) => {
+    const seen = new Set();
+    const output = [];
+
+    for (const testCase of cases) {
+        const key = JSON.stringify([testCase.input, testCase.expected, testCase.visibility]);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        output.push(testCase);
+    }
+
+    return output;
+};
+
+const buildSubmissionSuites = (problem) => {
+    const primaryCases = normalizeCaseList(problem?.testCases, CASE_VISIBILITY.HIDDEN);
+    const sampleFromSeparate = normalizeCaseList(problem?.sampleTestCases, CASE_VISIBILITY.SAMPLE);
+    const hiddenFromSeparate = normalizeCaseList(problem?.hiddenTestCases, CASE_VISIBILITY.HIDDEN);
+    const edgeFromSeparate = normalizeCaseList(problem?.edgeTestCases, CASE_VISIBILITY.EDGE);
+    const edgeFromAlias = normalizeCaseList(problem?.edgeCases, CASE_VISIBILITY.EDGE);
+
+    const hasSeparateBuckets =
+        sampleFromSeparate.length > 0 ||
+        hiddenFromSeparate.length > 0 ||
+        edgeFromSeparate.length > 0 ||
+        edgeFromAlias.length > 0;
+
+    const primarySamples = primaryCases.filter((testCase) => testCase.visibility === CASE_VISIBILITY.SAMPLE);
+    const primaryHidden = primaryCases.filter((testCase) => testCase.visibility === CASE_VISIBILITY.HIDDEN);
+    const primaryEdge = primaryCases.filter((testCase) => testCase.visibility === CASE_VISIBILITY.EDGE);
+
+    let sampleCases = [];
+    let hiddenCases = [];
+    let edgeCases = [];
+
+    if (hasSeparateBuckets) {
+        sampleCases = dedupeCases([...sampleFromSeparate, ...primarySamples]);
+        hiddenCases = dedupeCases([...hiddenFromSeparate, ...primaryHidden]);
+        edgeCases = dedupeCases([...edgeFromSeparate, ...edgeFromAlias, ...primaryEdge]);
+    } else if (primarySamples.length > 0 || primaryEdge.length > 0) {
+        sampleCases = dedupeCases(primarySamples);
+        hiddenCases = dedupeCases(primaryHidden);
+        edgeCases = dedupeCases(primaryEdge);
+    } else {
+        // Legacy fallback: first two become sample, the rest hidden.
+        sampleCases = primaryCases
+            .slice(0, Math.min(2, primaryCases.length))
+            .map((testCase) => ({ ...testCase, visibility: CASE_VISIBILITY.SAMPLE }));
+        hiddenCases = primaryCases
+            .slice(sampleCases.length)
+            .map((testCase) => ({ ...testCase, visibility: CASE_VISIBILITY.HIDDEN }));
+        edgeCases = [];
+    }
+
+    return {
+        sampleCases,
+        hiddenCases,
+        edgeCases,
+        submissionCases: dedupeCases([...sampleCases, ...hiddenCases, ...edgeCases])
+    };
+};
 
 // Helper to execute code in Docker
 const executeCode = async (code, language, inputStr) => {
@@ -70,39 +177,75 @@ const processSubmission = async (userId, matchId, code, language, problemId, io)
     const problem = await Problem.findById(problemId);
     if (!problem) throw new Error('Problem not found');
 
+    const suites = buildSubmissionSuites(problem);
+    const submissionCases = suites.submissionCases;
+    if (submissionCases.length === 0) {
+        throw new Error('No test cases configured for this problem');
+    }
+
     let passedCases = 0;
     let totalTime = 0;
     let finalVerdict = 'Accepted';
     let testResultsData = [];
 
-    // Run against all hidden test cases
-    for (const tc of problem.testCases) {
+    // Run against complete suite (sample + hidden + edge) before accepting submission.
+    for (const tc of submissionCases) {
         const { output, executionTime, error } = await executeCode(code, language, tc.input);
         totalTime += executionTime;
 
-        // Verify output exactly
-        // MongoDB might store integer expected values, convert to String explicitly
-        const expectedStr = String(tc.expected).trim();
+        const expectedValue = resolveExpectedValue(tc);
+        const expectedStr = String(expectedValue).trim();
+        const caseVisibility = normalizeVisibility(tc.visibility, CASE_VISIBILITY.HIDDEN);
+        const revealCaseDetails = caseVisibility === CASE_VISIBILITY.SAMPLE;
+        const safeInput = revealCaseDetails ? String(tc.input) : `[${caseVisibility} testcase]`;
+        const safeExpected = revealCaseDetails ? expectedStr : '[hidden]';
 
         if (error === 'TLE') {
             finalVerdict = 'Time Limit Exceeded';
-            testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: 'N/A', passed: false });
+            testResultsData.push({
+                input: safeInput,
+                expectedOutput: safeExpected,
+                actualOutput: revealCaseDetails ? 'N/A' : '[hidden]',
+                passed: false
+            });
             break;
         } else if (error) {
             finalVerdict = 'Runtime Error';
-            testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: 'ERROR', passed: false });
+            testResultsData.push({
+                input: safeInput,
+                expectedOutput: safeExpected,
+                actualOutput: revealCaseDetails ? 'ERROR' : '[hidden]',
+                passed: false
+            });
             break;
         } else if (output !== expectedStr) {
             finalVerdict = 'Wrong Answer';
-            testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: output, passed: false });
+            testResultsData.push({
+                input: safeInput,
+                expectedOutput: safeExpected,
+                actualOutput: revealCaseDetails ? output : '[hidden]',
+                passed: false
+            });
             break;
         }
         
         passedCases++;
-        testResultsData.push({ input: String(tc.input), expectedOutput: expectedStr, actualOutput: output, passed: true });
+        testResultsData.push({
+            input: safeInput,
+            expectedOutput: safeExpected,
+            actualOutput: revealCaseDetails ? output : '[hidden]',
+            passed: true
+        });
     }
 
     const isAccepted = finalVerdict === 'Accepted';
+    const failedCases = testResultsData
+        .filter((testResult) => !testResult.passed && !String(testResult.input).startsWith('['))
+        .map((testResult) => ({
+            input: testResult.input,
+            output: testResult.expectedOutput,
+            got: testResult.actualOutput
+        }));
 
     const submission = await Submission.create({
         matchId,
@@ -114,7 +257,7 @@ const processSubmission = async (userId, matchId, code, language, problemId, io)
         verdict: finalVerdict,
         testResults: testResultsData,
         passedCases,
-        totalCases: problem.testCases.length
+        totalCases: submissionCases.length
     });
 
     match.submissions.push(submission._id);
@@ -126,7 +269,7 @@ const processSubmission = async (userId, matchId, code, language, problemId, io)
             userId,
             verdict: finalVerdict,
             passedCases,
-            totalCases: problem.testCases.length
+            totalCases: submissionCases.length
         });
     }
 
@@ -153,8 +296,10 @@ const processSubmission = async (userId, matchId, code, language, problemId, io)
 
     return {
         passed: isAccepted,
+        totalTestCases: submissionCases.length,
+        passedTestCases: passedCases,
+        failedCases,
         testCasesPassed: passedCases,
-        totalTestCases: problem.testCases.length,
         executionTime: totalTime,
         verdict: finalVerdict
     };
