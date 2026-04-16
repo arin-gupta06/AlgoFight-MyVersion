@@ -49,26 +49,32 @@ export default function LiveBattle() {
   const sampleCases = Array.isArray(problem?.testCases) ? problem.testCases.slice(0, 2) : [];
 
   useEffect(() => {
-    const socket = connectSocket();
-    socketRef.current = socket;
+    let cancelled = false;
+    let socket = null;
 
-    socket.on("connect", () => {
-      setStatus("waiting");
-      notify({
-        type: "info",
-        title: "Connected",
-        message: "Connected to battle server. Looking for an opponent...",
-        duration: 2600,
+    const setupSocket = async () => {
+      const token = user ? await user.getIdToken().catch(() => null) : null;
+      if (cancelled) return;
+
+      socket = connectSocket(token, user?.uid || null);
+      socketRef.current = socket;
+
+      socket.on("connect", () => {
+        setStatus("waiting");
+        notify({
+          type: "info",
+          title: "Connected",
+          message: "Connected to battle server. Looking for an opponent...",
+          duration: 2600,
+        });
+        socket.emit("find_match", { username });
       });
-      // Automatically start matchmaking — send uid so backend can find us in MongoDB
-      socket.emit("find_match", { username, uid: user?.uid });
-    });
 
-    socket.on("waiting_for_opponent", () => {
-      setStatus("waiting");
-    });
+      socket.on("waiting_for_opponent", () => {
+        setStatus("waiting");
+      });
 
-    socket.on("match_found", (data) => {
+      socket.on("match_found", (data) => {
       const { roomId: rid, problem: prob, players } = data;
       setRoomId(rid);
       setProblem(prob);
@@ -94,7 +100,7 @@ export default function LiveBattle() {
       });
     });
 
-    socket.on("code_result", ({ result }) => {
+      socket.on("code_result", ({ result }) => {
       setRunning(false);
       setRunMode("idle");
       setLastResult(result || null);
@@ -110,11 +116,11 @@ export default function LiveBattle() {
       }
     });
 
-    socket.on("submission_result", (result) => {
-      setSubmissionMeta(result || null);
-    });
+      socket.on("submission_result", (result) => {
+        setSubmissionMeta(result || null);
+      });
 
-    socket.on("battle_over", ({ winner }) => {
+      socket.on("battle_over", ({ winner }) => {
       const youWin = winner === username;
       setBattleResult({
         winner: youWin ? "You" : winner,
@@ -130,7 +136,7 @@ export default function LiveBattle() {
       });
     });
 
-    socket.on("opponent_disconnected", () => {
+      socket.on("opponent_disconnected", () => {
       setBattleResult({
         winner: "You",
         message: "Your opponent disconnected. You win!",
@@ -145,7 +151,7 @@ export default function LiveBattle() {
       });
     });
 
-    socket.on("error", (msg) => {
+      socket.on("error", (msg) => {
       setOutput(`Error: ${msg}`);
       setRunning(false);
       setRunMode("idle");
@@ -156,15 +162,25 @@ export default function LiveBattle() {
       });
     });
 
+    };
+
+    setupSocket();
+
     return () => {
-      socket.off("connect");
-      socket.off("waiting_for_opponent");
-      socket.off("match_found");
-      socket.off("code_result");
-      socket.off("submission_result");
-      socket.off("battle_over");
-      socket.off("opponent_disconnected");
-      socket.off("error");
+      cancelled = true;
+      if (!socketRef.current) {
+        return;
+      }
+
+      const activeSocket = socketRef.current;
+      activeSocket.off("connect");
+      activeSocket.off("waiting_for_opponent");
+      activeSocket.off("match_found");
+      activeSocket.off("code_result");
+      activeSocket.off("submission_result");
+      activeSocket.off("battle_over");
+      activeSocket.off("opponent_disconnected");
+      activeSocket.off("error");
       disconnectSocket();
     };
   }, [notify, user?.uid, username]);

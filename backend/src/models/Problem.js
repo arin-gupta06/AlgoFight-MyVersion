@@ -21,6 +21,10 @@ const StarterCodeSchema = new mongoose.Schema({
     python: {
         type: String,
         default: ''
+    },
+    cpp: {
+        type: String,
+        default: ''
     }
 }, { _id: false });
 
@@ -94,7 +98,7 @@ const ProblemSchema = new mongoose.Schema({
     },
     starterCode: {
         type: StarterCodeSchema,
-        default: () => ({ javascript: '', python: '' })
+        default: () => ({ javascript: '', python: '', cpp: '' })
     },
     examples: {
         type: [ExampleSchema],
@@ -139,7 +143,16 @@ ProblemSchema.pre('validate', function normalizeProblem() {
         const jsStarter = this.starterCode;
         this.starterCode = {
             javascript: jsStarter,
-            python: 'def solution(*args):\n    # Write code here\n    pass\n'
+            python: 'def solution(*args):\n    # Write code here\n    pass\n',
+            cpp: [
+                '#include <bits/stdc++.h>',
+                'using namespace std;',
+                '',
+                'int main() {',
+                '    // TODO: implement solution',
+                '    return 0;',
+                '}'
+            ].join('\n')
         };
     }
 

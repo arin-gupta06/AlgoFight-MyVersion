@@ -6,6 +6,12 @@ const cors = require("cors");
 const vm = require("vm");
 const mongoose = require("mongoose");
 const { executeCode: executeCodeDocker } = require('./src/services/submissionService');
+const { apiLimiter } = require('./src/middleware/rateLimiter');
+const {
+  extractBearerToken,
+  requireFirebaseUser,
+  verifyFirebaseIdToken,
+} = require('./src/middleware/firebaseAuth');
 
 // ─── Models ─────────────────────────────────────────────
 const User = require("./models/User");
@@ -18,6 +24,7 @@ const RECENT_PROBLEM_WINDOW = parseInt(process.env.RECENT_PROBLEM_WINDOW, 10) ||
 const app = express();
 app.use(cors({ origin: frontendUrl }));
 app.use(express.json());
+app.use(apiLimiter);
 app.use("/api/problems", problemRoutes);
 
 const server = http.createServer(app);
@@ -25,6 +32,36 @@ const io = new Server(server, {
   cors: {
     origin: frontendUrl,
     methods: ["GET", "POST"]
+  }
+});
+
+io.use(async (socket, next) => {
+  try {
+    const tokenFromAuth = typeof socket.handshake.auth?.token === 'string'
+      ? socket.handshake.auth.token
+      : null;
+    const tokenFromHeader = extractBearerToken(socket.handshake.headers?.authorization);
+    const idToken = tokenFromAuth || tokenFromHeader;
+
+    if (idToken) {
+      const firebaseUser = await verifyFirebaseIdToken(idToken);
+      socket.firebaseUid = firebaseUser.uid;
+      socket.firebaseUser = firebaseUser;
+      return next();
+    }
+
+    if (process.env.NODE_ENV !== 'production' && !process.env.FIREBASE_API_KEY) {
+      const devUid = socket.handshake.auth?.uid;
+      if (devUid) {
+        socket.firebaseUid = String(devUid);
+        socket.firebaseUser = { uid: String(devUid) };
+        return next();
+      }
+    }
+
+    return next(new Error('Authentication required'));
+  } catch (error) {
+    return next(new Error('Invalid auth token'));
   }
 });
 
@@ -292,21 +329,40 @@ function getStarterCodePayload(problem) {
   if (!problem || !problem.starterCode) {
     return {
       javascript: "function solution(input) {\n  // Write code here\n  return input;\n}",
-      python: "def solution(input_data):\n    # Write code here\n    return input_data\n"
+      python: "def solution(input_data):\n    # Write code here\n    return input_data\n",
+      cpp: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // Write code here\n    return 0;\n}\n"
     };
   }
 
   if (typeof problem.starterCode === "string") {
     return {
       javascript: problem.starterCode,
-      python: "def solution(input_data):\n    # Write code here\n    return input_data\n"
+      python: "def solution(input_data):\n    # Write code here\n    return input_data\n",
+      cpp: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // Write code here\n    return 0;\n}\n"
     };
   }
 
   return {
     javascript: problem.starterCode.javascript || "",
-    python: problem.starterCode.python || ""
+    python: problem.starterCode.python || "",
+    cpp: problem.starterCode.cpp || ""
   };
+}
+
+function normalizeExecutionLanguage(language) {
+  const normalized = String(language || "javascript").trim().toLowerCase();
+
+  if (["javascript", "js", "node", "javascript(vm)"].includes(normalized)) {
+    return "javascript";
+  }
+  if (["python", "py"].includes(normalized)) {
+    return "python";
+  }
+  if (["cpp", "c++", "cxx", "cc"].includes(normalized)) {
+    return "cpp";
+  }
+
+  return null;
 }
 
 function getVisibleTestCases(problem) {
@@ -341,8 +397,9 @@ app.get("/", (req, res) => {
 });
 
 // Sync Firebase user to MongoDB (create or update)
-app.post("/api/users", async (req, res) => {
-  const { uid, email, displayName, photoURL } = req.body;
+app.post("/api/users", requireFirebaseUser, async (req, res) => {
+  const { email, displayName, photoURL } = req.body;
+  const uid = req.firebaseUser.uid;
   try {
     let user = await User.findOne({ firebaseUid: uid });
     if (!user) {
@@ -384,7 +441,11 @@ app.post("/api/users", async (req, res) => {
 });
 
 // Get user profile by Firebase UID
-app.get("/api/users/:uid", async (req, res) => {
+app.get("/api/users/:uid", requireFirebaseUser, async (req, res) => {
+  if (String(req.params.uid) !== String(req.firebaseUser.uid)) {
+    return res.status(403).json({ message: "Forbidden" });
+  }
+
   try {
     const user = await User.findOne({ firebaseUid: req.params.uid })
       .select("-password");
@@ -398,9 +459,13 @@ app.get("/api/users/:uid", async (req, res) => {
 });
 
 // Record practice submission progress for a user
-app.post("/api/users/:uid/practice-progress", async (req, res) => {
+app.post("/api/users/:uid/practice-progress", requireFirebaseUser, async (req, res) => {
   const { uid } = req.params;
   const { problemId, passed } = req.body;
+
+  if (String(uid) !== String(req.firebaseUser.uid)) {
+    return res.status(403).json({ success: false, message: "Forbidden" });
+  }
 
   try {
     const user = await User.findOne({ firebaseUid: uid });
@@ -444,6 +509,78 @@ app.post("/api/users/:uid/practice-progress", async (req, res) => {
   } catch (err) {
     console.error("Practice progress update error:", err.message);
     return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Practice evaluator with balanced suite for fairer solo progression.
+app.post("/api/practice/evaluate", requireFirebaseUser, async (req, res) => {
+  const { problemId, code, language, mode } = req.body || {};
+
+  const normalizedLanguage = normalizeExecutionLanguage(language);
+  const normalizedMode = mode === "submit" ? "submit" : "test";
+
+  if (!problemId) {
+    return res.status(400).json({ success: false, message: "problemId is required" });
+  }
+  if (!code || typeof code !== "string") {
+    return res.status(400).json({ success: false, message: "code is required" });
+  }
+  if (!normalizedLanguage) {
+    return res.status(400).json({ success: false, message: "Unsupported language. Use javascript, python, or cpp." });
+  }
+
+  try {
+    const problem = await Problem.findById(problemId).lean();
+    if (!problem) {
+      return res.status(404).json({ success: false, message: "Problem not found" });
+    }
+
+    const suites = buildEvaluationSuites(problem);
+    const sampleCases = suites.sampleCases || [];
+    const hiddenCases = suites.hiddenCases || [];
+    const edgeCases = suites.edgeCases || [];
+
+    let evaluationCases = [];
+    if (normalizedMode === "test") {
+      evaluationCases = sampleCases.length > 0
+        ? sampleCases
+        : (suites.submissionCases || []).slice(0, Math.min(2, (suites.submissionCases || []).length));
+    } else {
+      // Keep practice mode challenging but not punishing: cap hidden/edge volume.
+      const limitedHidden = hiddenCases.slice(0, Math.min(3, hiddenCases.length));
+      const limitedEdge = edgeCases.slice(0, Math.min(1, edgeCases.length));
+      evaluationCases = dedupeCases([...sampleCases, ...limitedHidden, ...limitedEdge]);
+      if (evaluationCases.length === 0) {
+        evaluationCases = (suites.submissionCases || []).slice(0, Math.min(4, (suites.submissionCases || []).length));
+      }
+    }
+
+    if (!evaluationCases || evaluationCases.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No test cases configured for this problem."
+      });
+    }
+
+    const result = await executeCodeAsync(code, normalizedLanguage, evaluationCases, {
+      revealHiddenDetails: normalizedMode === "test"
+    });
+
+    return res.json({
+      success: true,
+      mode: normalizedMode,
+      language: normalizedLanguage,
+      plan: {
+        sample: sampleCases.length,
+        hiddenUsed: normalizedMode === "submit" ? Math.min(3, hiddenCases.length) : 0,
+        edgeUsed: normalizedMode === "submit" ? Math.min(1, edgeCases.length) : 0,
+        totalEvaluated: evaluationCases.length
+      },
+      ...result
+    });
+  } catch (err) {
+    console.error("Practice evaluation error:", err.message);
+    return res.status(500).json({ success: false, message: err.message || "Practice evaluation failed" });
   }
 });
 
@@ -681,22 +818,38 @@ function executeCode(userCode, testCases, options = {}) {
 
     const sandbox = Object.create(null);
     sandbox.console = { log: () => {} };
+    sandbox.module = { exports: {} };
+    sandbox.exports = sandbox.module.exports;
     vm.createContext(sandbox, {
       codeGeneration: { strings: false, wasm: false },
       name: "algofight-battle-sandbox"
     });
     vm.runInContext(userCode, sandbox, { timeout: 2000 });
 
-    if (typeof sandbox.solution !== 'function') {
+    let solutionRef = sandbox.solution;
+    if (typeof solutionRef !== 'function') {
+      const moduleExports = sandbox.module ? sandbox.module.exports : undefined;
+      if (typeof moduleExports === 'function') {
+        solutionRef = moduleExports;
+      } else if (moduleExports && typeof moduleExports.solution === 'function') {
+        solutionRef = moduleExports.solution;
+      } else if (sandbox.exports && typeof sandbox.exports.solution === 'function') {
+        solutionRef = sandbox.exports.solution;
+      }
+    }
+
+    if (typeof solutionRef !== 'function') {
       return {
         passed: false,
         totalTestCases: safeTestCases.length,
         passedTestCases: 0,
         failedCases: [],
         executionTime: Date.now() - startedAt,
-        output: "Error: function 'solution' not found."
+        output: "Error: function 'solution' not found. Export it directly or as module.exports = { solution }."
       };
     }
+
+    sandbox.solution = solutionRef;
 
     const failures = [];
     let passedCases = 0;
@@ -805,6 +958,27 @@ function executeCode(userCode, testCases, options = {}) {
 
 // ─── Elo Rating ─────────────────────────────────────────
 const ELO_K = parseInt(process.env.ELO_K_FACTOR) || 32;
+const SOCKET_SUBMISSION_COOLDOWN_MS = parseInt(process.env.SOCKET_SUBMISSION_COOLDOWN_MS, 10) || 700;
+
+function isBattleParticipant(socket, battle) {
+  if (!battle || !socket) return false;
+  return socket.id === battle.p1 || socket.id === battle.p2;
+}
+
+function isAllowedEventRate(socket, key, minGapMs) {
+  if (!socket) return false;
+  socket.data = socket.data || {};
+  socket.data.eventRateMap = socket.data.eventRateMap || {};
+  const now = Date.now();
+  const lastSeenAt = socket.data.eventRateMap[key] || 0;
+
+  if (now - lastSeenAt < minGapMs) {
+    return false;
+  }
+
+  socket.data.eventRateMap[key] = now;
+  return true;
+}
 
 async function updateRatings(winnerId, loserId) {
   try {
@@ -879,10 +1053,11 @@ io.on("connection", (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   socket.on("find_match", async (userData) => {
-    const { username, uid, difficulty, tags } = userData;
-    console.log(`${username} (uid: ${uid}) is looking for a match...`);
-    socket.username = username;
-    socket.firebaseUid = uid || null;
+    const { username, difficulty, tags } = userData;
+    const uid = socket.firebaseUid || null;
+    const requestedUsername = String(username || 'Player').trim() || 'Player';
+    console.log(`${requestedUsername} (uid: ${uid}) is looking for a match...`);
+    socket.username = requestedUsername;
     socket.preferredDifficulty = normalizeDifficulty(difficulty);
     socket.preferredTags = normalizeTags(tags);
 
@@ -898,6 +1073,9 @@ io.on("connection", (socket) => {
     }
     socket.dbUserId = dbUser ? dbUser._id : null;
     socket.dbRating = dbUser ? dbUser.rating : null;
+    if (dbUser?.displayName) {
+      socket.username = dbUser.displayName;
+    }
     console.log(`DB user lookup: ${dbUser ? dbUser.displayName + ' (' + dbUser._id + ')' : 'NOT FOUND'}`);
 
     if (waitingPlayer && waitingPlayer.id !== socket.id) {
@@ -939,7 +1117,7 @@ io.on("connection", (socket) => {
           player1: opponent.dbUserId || undefined,
           player2: socket.dbUserId || undefined,
           player1Username: opponent.username,
-          player2Username: username,
+          player2Username: socket.username,
           battleId: roomId,
           players: [opponent.dbUserId || undefined, socket.dbUserId || undefined].filter(Boolean),
           problemId: problem._id || undefined,
@@ -957,7 +1135,7 @@ io.on("connection", (socket) => {
         p1DbId: opponent.dbUserId,
         p2DbId: socket.dbUserId,
         p1Username: opponent.username,
-        p2Username: username,
+        p2Username: socket.username,
         problem,
         evaluationSuites,
         submissionAttempts: {
@@ -969,7 +1147,7 @@ io.on("connection", (socket) => {
         matchDbId: matchDoc ? matchDoc._id : null
       };
 
-      console.log(`Match found: ${opponent.username} vs ${username} in ${roomId}`);
+      console.log(`Match found: ${opponent.username} vs ${socket.username} in ${roomId}`);
 
       // Send problem to both players (without test cases for security display)
       const publicProblem = toPublicProblem(problem);
@@ -980,7 +1158,7 @@ io.on("connection", (socket) => {
           starterCodeByLanguage: publicProblem.starterCode,
           starterCode: publicProblem.starterCode.javascript || ""
         },
-        players: [opponent.username, username]
+        players: [opponent.username, socket.username]
       });
 
     } else {
@@ -998,6 +1176,14 @@ io.on("connection", (socket) => {
       return socket.emit("error", "Battle not found!");
     }
 
+    if (!isBattleParticipant(socket, battle) || !socket.rooms.has(roomId)) {
+      return socket.emit("error", "Not authorized for this battle.");
+    }
+
+    if (!isAllowedEventRate(socket, `test:${roomId}`, 300)) {
+      return socket.emit("error", "Too many test requests. Please slow down.");
+    }
+
     const suites = battle.evaluationSuites || buildEvaluationSuites(battle.problem);
     const sampleCases = suites.sampleCases.length > 0
       ? suites.sampleCases
@@ -1013,6 +1199,14 @@ io.on("connection", (socket) => {
 
     if (!battle) {
       return socket.emit("error", "Battle not found!");
+    }
+
+    if (!isBattleParticipant(socket, battle) || !socket.rooms.has(roomId)) {
+      return socket.emit("error", "Not authorized for this battle.");
+    }
+
+    if (!isAllowedEventRate(socket, `submit:${roomId}`, SOCKET_SUBMISSION_COOLDOWN_MS)) {
+      return socket.emit("error", "Submission rate limit exceeded. Please wait a moment.");
     }
 
     const suites = battle.evaluationSuites || buildEvaluationSuites(battle.problem);

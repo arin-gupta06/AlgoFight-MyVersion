@@ -18,6 +18,9 @@ import Developer from './components/Developer/Developer.jsx';
 import BattleArena from './components/Battle/BattleArena.jsx';
 import Practice from './components/Practice/Practice.jsx';
 import PracticeWorkspace from './components/Practice/PracticeWorkspace.jsx';
+import Terms from './components/Legal/Terms.jsx';
+import Privacy from './components/Legal/Privacy.jsx';
+import Cookies from './components/Legal/Cookies.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 // 📌 Auth layout (no NavBar or Squares)
@@ -62,6 +65,9 @@ function App() {
         <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
         <Route path="/developer" element={<ProtectedRoute><Developer /></ProtectedRoute>} />
         <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+        <Route path="/terms" element={<ProtectedRoute><Terms /></ProtectedRoute>} />
+        <Route path="/privacy" element={<ProtectedRoute><Privacy /></ProtectedRoute>} />
+        <Route path="/cookies" element={<ProtectedRoute><Cookies /></ProtectedRoute>} />
       </Route>
 
       </Routes>

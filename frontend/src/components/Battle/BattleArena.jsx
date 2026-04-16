@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import ResultPopup from "./ResultPopup.jsx";
 import { useAuth } from "../../contexts/AuthContext";
 import { fetchUserProfile } from "../../services/api";
+import { normalizeUserStats } from "../../utils/playerMetrics";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTrophy, faBullseye, faBolt, faMagnifyingGlass, faCrosshairs } from "@fortawesome/free-solid-svg-icons";
 import "./BattleArena.css";
@@ -38,10 +39,7 @@ export default function BattleArena() {
     }
   }, [location.state]);
 
-  const rating = profile?.rating ?? 1200;
-  const matchesPlayed = profile?.matchesPlayed ?? 0;
-  const matchesWon = profile?.matchesWon ?? 0;
-  const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
+  const { rating, matchesWon, winRate } = normalizeUserStats(profile || {});
 
   const startMatchmaking = () => {
     navigate("/battle/live");

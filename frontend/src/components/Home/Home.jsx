@@ -50,7 +50,7 @@ function Home() {
         const getProblems = async () => {
             try {
                 // Fetch problems and pick 3 at random
-                const data = await fetchPracticeProblems({ limit: 50 });
+                const data = await fetchPracticeProblems({ limit: 50, mode: 'practice' });
                 const problemsList = data?.problems || [];
                 const shuffled = [...problemsList].sort(() => 0.5 - Math.random());
                 setFeaturedProblems(shuffled.slice(0, 3));
@@ -203,9 +203,9 @@ function Home() {
                         </div>
                         <div className="link-col">
                             <h4>Legal</h4>
-                            <a href="#">Terms</a>
-                            <a href="#">Privacy</a>
-                            <a href="#">Cookies</a>
+                            <a href="/terms">Terms</a>
+                            <a href="/privacy">Privacy</a>
+                            <a href="/cookies">Cookies</a>
                         </div>
                     </div>
                 </div>

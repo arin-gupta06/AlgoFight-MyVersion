@@ -193,6 +193,31 @@
 	font-weight: 700;
 }
 
+.livebattle-language-select {
+	min-height: 30px;
+	border-radius: 999px;
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	background: rgba(255, 255, 255, 0.03);
+	color: #d8e8ff;
+	padding: 0 10px;
+	font-size: 0.72rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	outline: none;
+	cursor: pointer;
+}
+
+.livebattle-language-select:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.livebattle-language-select option {
+	background: #050b14;
+	color: #d8e8ff;
+}
+
 .livebattle-problem-scroll {
 	flex: 1;
 	overflow-y: auto;

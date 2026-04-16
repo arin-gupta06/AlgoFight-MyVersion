@@ -1,29 +1,27 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-    faArrowTrendUp,
     faBolt,
     faBriefcase,
     faCheckCircle,
+    faCircleInfo,
     faCode,
     faGift,
     faLaptopCode,
     faMedal,
+    faRotate,
     faRocket,
-    faStar,
     faTicket,
 } from '@fortawesome/free-solid-svg-icons';
+import { useAuth } from '../../contexts/AuthContext';
+import { fetchUserProfile } from '../../services/api';
+import {
+    calculateArenaPointBreakdown,
+    getRankProgressByRating,
+    normalizeUserStats,
+    RANK_TIERS,
+} from '../../utils/playerMetrics';
 import './Rewards.css';
-
-const arenaPoints = 1847;
-
-const rankTiers = [
-    { label: 'Novice', minPoints: 0 },
-    { label: 'Warrior', minPoints: 500 },
-    { label: 'Expert', minPoints: 1000 },
-    { label: 'Master', minPoints: 3000 },
-    { label: 'Grandmaster', minPoints: 5000 },
-];
 
 const rewardCatalog = [
     {
@@ -31,8 +29,6 @@ const rewardCatalog = [
         description: 'Redeem credits from $10 to $500 and use them for books, gear, or software.',
         category: 'Marketplace',
         cost: 1000,
-        status: 'redeem',
-        cta: 'Redeem Now',
         icon: faGift,
         tone: 'pink',
     },
@@ -41,8 +37,6 @@ const rewardCatalog = [
         description: 'Get sponsored entries to paid hackathons and coding competitions.',
         category: 'Competition',
         cost: 1500,
-        status: 'redeem',
-        cta: 'Redeem Now',
         icon: faTicket,
         tone: 'cyan',
     },
@@ -51,8 +45,6 @@ const rewardCatalog = [
         description: 'Unlock access to advanced IDE features and curated productivity toolkits.',
         category: 'Productivity',
         cost: 2500,
-        status: 'locked',
-        cta: 'Need More Points',
         icon: faLaptopCode,
         tone: 'blue',
     },
@@ -61,8 +53,6 @@ const rewardCatalog = [
         description: 'Priority shortlisting for internship opportunities with partner companies.',
         category: 'Career',
         cost: 5000,
-        status: 'locked',
-        cta: 'Need More Points',
         icon: faBriefcase,
         tone: 'orange',
     },
@@ -71,8 +61,7 @@ const rewardCatalog = [
         description: 'Unlock premium courses in DSA, system design, and interview prep.',
         category: 'Learning',
         cost: 3000,
-        status: 'coming-soon',
-        cta: 'Coming Soon',
+        comingSoon: true,
         icon: faCode,
         tone: 'violet',
     },
@@ -81,24 +70,13 @@ const rewardCatalog = [
         description: 'Mechanical keyboards, monitors, and streaming gear for top performers.',
         category: 'Hardware',
         cost: 7500,
-        status: 'coming-soon',
-        cta: 'Coming Soon',
+        comingSoon: true,
         icon: faRocket,
         tone: 'teal',
     },
 ];
 
-const earnSources = [
-    { label: 'Win live battle', points: '+120', icon: faBolt },
-    { label: 'Complete daily challenge', points: '+75', icon: faStar },
-    { label: 'Solve hard practice problem', points: '+50', icon: faCode },
-    { label: '7-day activity streak', points: '+200', icon: faArrowTrendUp },
-];
-
-const recentRedeems = [
-    { title: 'Hackathon Entry Pass', time: '2 days ago', points: '-1500' },
-    { title: 'Amazon Gift Card ($10)', time: '8 days ago', points: '-1000' },
-];
+const recentRedeems = [];
 
 const numberFormatter = new Intl.NumberFormat('en-US');
 
@@ -108,25 +86,113 @@ function getRewardStatusLabel(status) {
     return 'Coming Soon';
 }
 
+function getRewardActionLabel(status) {
+    if (status === 'redeem') return 'Redeem Now';
+    if (status === 'locked') return 'Need More Points';
+    return 'Coming Soon';
+}
+
 function Rewards() {
-    const currentTierIndex = rankTiers.reduce((bestIndex, tier, index) => {
-        if (arenaPoints >= tier.minPoints) return index;
-        return bestIndex;
-    }, 0);
+    const { user, loading: authLoading } = useAuth();
+    const [profile, setProfile] = useState(null);
+    const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+    const [profileError, setProfileError] = useState('');
 
-    const currentTier = rankTiers[currentTierIndex];
-    const nextTier = rankTiers[currentTierIndex + 1] || rankTiers[currentTierIndex];
+    useEffect(() => {
+        let active = true;
 
-    const progressToNext =
-        nextTier.minPoints === currentTier.minPoints
-            ? 100
-            : Math.min(
-                    100,
-                    ((arenaPoints - currentTier.minPoints) / (nextTier.minPoints - currentTier.minPoints)) * 100
-                );
+        const loadProfile = async () => {
+            if (!user?.uid) {
+                setProfile(null);
+                setIsLoadingProfile(false);
+                return;
+            }
 
-    const pointsToNextTier = Math.max(0, nextTier.minPoints - arenaPoints);
-    const redeemableCount = rewardCatalog.filter((reward) => reward.status === 'redeem').length;
+            setIsLoadingProfile(true);
+            setProfileError('');
+
+            try {
+                const data = await fetchUserProfile(user.uid);
+                if (!active) return;
+                setProfile(data || null);
+            } catch {
+                if (!active) return;
+                setProfileError('Could not sync reward metrics. Showing computed defaults.');
+                setProfile(null);
+            } finally {
+                if (active) setIsLoadingProfile(false);
+            }
+        };
+
+        loadProfile();
+
+        return () => {
+            active = false;
+        };
+    }, [user?.uid]);
+
+    const stats = useMemo(() => normalizeUserStats(profile || {}), [profile]);
+    const pointBreakdown = useMemo(
+        () =>
+            calculateArenaPointBreakdown({
+                rating: stats.rating,
+                matchesWon: stats.matchesWon,
+                matchesPlayed: stats.matchesPlayed,
+                practiceSolved: stats.practiceSolved,
+            }),
+        [stats.rating, stats.matchesWon, stats.matchesPlayed, stats.practiceSolved]
+    );
+
+    const arenaPoints = pointBreakdown.total;
+    const {
+        currentTier,
+        nextTier,
+        currentTierIndex,
+        progressToNext,
+        ratingToNextTier,
+    } = getRankProgressByRating(stats.rating);
+
+    const computedRewards = useMemo(
+        () =>
+            rewardCatalog.map((reward) => {
+                const status = reward.comingSoon
+                    ? 'coming-soon'
+                    : arenaPoints >= reward.cost
+                        ? 'redeem'
+                        : 'locked';
+
+                return {
+                    ...reward,
+                    status,
+                    cta: getRewardActionLabel(status),
+                };
+            }),
+        [arenaPoints]
+    );
+
+    const pointSourceRows = useMemo(
+        () => [
+            { label: 'Rating contribution', value: pointBreakdown.ratingPoints, icon: faMedal },
+            { label: 'Battle wins contribution', value: pointBreakdown.battleWinPoints, icon: faBolt },
+            { label: 'Practice solved contribution', value: pointBreakdown.practiceSolvedPoints, icon: faCode },
+            { label: 'Participation contribution', value: pointBreakdown.participationPoints, icon: faRotate },
+        ],
+        [pointBreakdown]
+    );
+
+    const redeemableCount = computedRewards.filter((reward) => reward.status === 'redeem').length;
+
+    if (authLoading || isLoadingProfile) {
+        return (
+            <div className="rewards-page">
+                <section className="rewards-main-panel">
+                    <div className="panel-headline-row">
+                        <h2>Loading rewards...</h2>
+                    </div>
+                </section>
+            </div>
+        );
+    }
 
     return (
         <div className="rewards-page">
@@ -136,21 +202,31 @@ function Rewards() {
                     Redeem <span className="text-cyan">Skills</span> Into Real Rewards
                 </h1>
                 <p>
-                    Earn points in battles, unlock higher ranks, and claim curated rewards designed for competitive coders.
+                    Rewards now read the same live profile stats used across the platform for transparent point and rank tracking.
                 </p>
+                {profileError ? (
+                    <div className="rewards-warning">
+                        <FontAwesomeIcon icon={faCircleInfo} />
+                        <span>{profileError}</span>
+                    </div>
+                ) : null}
             </section>
 
             <section className="rewards-kpi-grid">
                 <article className="rewards-kpi-card">
                     <div className="kpi-label">Arena Points</div>
                     <div className="kpi-value">{numberFormatter.format(arenaPoints)}</div>
-                    <div className="kpi-footnote">Current spendable balance</div>
+                    <div className="kpi-footnote">Computed from your live profile stats</div>
                 </article>
 
                 <article className="rewards-kpi-card">
                     <div className="kpi-label">Current Rank</div>
                     <div className="kpi-value">{currentTier.label}</div>
-                    <div className="kpi-footnote">{pointsToNextTier} points to {nextTier.label}</div>
+                    <div className="kpi-footnote">
+                        {ratingToNextTier > 0
+                            ? `${ratingToNextTier} rating to ${nextTier.label}`
+                            : 'Top rank unlocked'}
+                    </div>
                 </article>
 
                 <article className="rewards-kpi-card">
@@ -168,7 +244,7 @@ function Rewards() {
                     </div>
 
                     <div className="rewards-grid">
-                        {rewardCatalog.map((reward) => (
+                        {computedRewards.map((reward) => (
                             <article
                                 key={reward.title}
                                 className={`reward-card status-${reward.status}`}
@@ -204,7 +280,7 @@ function Rewards() {
                 <aside className="rewards-side-column">
                     <section className="rewards-side-card">
                         <div className="side-card-header">
-                            <h2>Progress Path</h2>
+                            <h2>Rank Progress</h2>
                             <span>{Math.round(progressToNext)}%</span>
                         </div>
 
@@ -218,14 +294,14 @@ function Rewards() {
                         </div>
 
                         <p className="tier-progress-copy">
-                            {pointsToNextTier > 0
-                                ? `${pointsToNextTier} points to reach ${nextTier.label}`
+                            {ratingToNextTier > 0
+                                ? `${ratingToNextTier} rating to reach ${nextTier.label}`
                                 : 'Top rank unlocked'}
                         </p>
 
                         <ul className="tier-list">
-                            {rankTiers.map((tier, index) => {
-                                const isComplete = arenaPoints >= tier.minPoints;
+                            {RANK_TIERS.map((tier, index) => {
+                                const isComplete = stats.rating >= tier.minRating;
                                 const isCurrent = index === currentTierIndex;
 
                                 return (
@@ -234,7 +310,7 @@ function Rewards() {
                                             <FontAwesomeIcon icon={isComplete ? faCheckCircle : faMedal} />
                                             <span>{tier.label}</span>
                                         </div>
-                                        <span className="tier-points">{numberFormatter.format(tier.minPoints)}</span>
+                                        <span className="tier-points">{numberFormatter.format(tier.minRating)} rating</span>
                                     </li>
                                 );
                             })}
@@ -242,15 +318,15 @@ function Rewards() {
                     </section>
 
                     <section className="rewards-side-card">
-                        <h2>How To Earn Points</h2>
+                        <h2>Points Breakdown</h2>
                         <ul className="earn-list">
-                            {earnSources.map((source) => (
+                            {pointSourceRows.map((source) => (
                                 <li key={source.label}>
                                     <div className="earn-left">
                                         <FontAwesomeIcon icon={source.icon} />
                                         <span>{source.label}</span>
                                     </div>
-                                    <span className="earn-points">{source.points}</span>
+                                    <span className="earn-points">{numberFormatter.format(source.value)}</span>
                                 </li>
                             ))}
                         </ul>

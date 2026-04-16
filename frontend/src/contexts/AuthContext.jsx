@@ -18,11 +18,13 @@ export function AuthProvider({ children }) {
       if (firebaseUser) {
         // Sync to backend on every auth state change
         try {
+          const authToken = await firebaseUser.getIdToken();
           await syncUserToBackend({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
             displayName: firebaseUser.displayName || "New Player",
             photoURL: firebaseUser.photoURL,
+            authToken,
           });
         } catch (err) {
           console.error("Failed to sync user to backend:", err);

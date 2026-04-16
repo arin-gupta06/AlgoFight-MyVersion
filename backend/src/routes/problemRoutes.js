@@ -12,7 +12,7 @@ const toPublicProblem = (problemDoc) => {
         description: source.description,
         constraints: source.constraints || '',
         examples: source.examples || [],
-        starterCode: source.starterCode || { javascript: '', python: '' },
+        starterCode: source.starterCode || { javascript: '', python: '', cpp: '' },
         testCases: visibleTestCases.map((testCase) => ({
             input: String(testCase.input),
             output: String(testCase.output ?? testCase.expected ?? testCase.expectedOutput ?? '')

@@ -1,5 +1,6 @@
 const { processSubmission } = require('../services/submissionService');
 const Submission = require('../models/Submission');
+const Match = require('../models/Match');
 const logger = require('../config/logger');
 
 /**
@@ -14,7 +15,7 @@ exports.submitCode = async (req, res, next) => {
         
         // Grab io reference from app so it can push updates over socket
         const io = req.app.get('io');
-        const userId = req.body.userId || req.user._id;
+        const userId = req.user._id;
 
         const submissionResult = await processSubmission(
             userId,
@@ -45,6 +46,22 @@ exports.submitCode = async (req, res, next) => {
  */
 exports.getSubmissions = async (req, res, next) => {
     try {
+        const match = await Match.findById(req.params.matchId)
+            .select('player1 player2');
+
+        if (!match) {
+            return res.status(404).json({ message: 'Match not found' });
+        }
+
+        const requesterId = String(req.user._id);
+        const isParticipant =
+            String(match.player1 || '') === requesterId ||
+            String(match.player2 || '') === requesterId;
+
+        if (!isParticipant) {
+            return res.status(403).json({ message: 'You are not a participant in this match' });
+        }
+
         const submissions = await Submission.find({ matchId: req.params.matchId })
             .populate('userId', 'username')
             .sort({ submittedAt: -1 });

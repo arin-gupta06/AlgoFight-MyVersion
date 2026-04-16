@@ -3,36 +3,51 @@ import { motion } from "framer-motion";
 import { useNavigate, useParams } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faClock, faFlask, faForward } from "@fortawesome/free-solid-svg-icons";
-import { fetchProblemById, recordPracticeProgress } from "../../services/api";
+import { evaluatePracticeCode, fetchProblemById, recordPracticeProgress } from "../../services/api";
 import { useNotification } from "../../contexts/NotificationContext.jsx";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import "../Battle/LiveBattle.css";
 
-const parseMaybeJson = (value) => {
-  if (typeof value !== "string") return value;
+const LANGUAGE_OPTIONS = [
+  { value: "javascript", label: "JavaScript" },
+  { value: "cpp", label: "C++" },
+];
 
-  const trimmed = value.trim();
-  if (!trimmed) return value;
+const JS_FALLBACK_STARTER = [
+  "function solution(input) {",
+  "  // TODO: implement solution",
+  "  return input;",
+  "}",
+].join("\n");
 
-  try {
-    return JSON.parse(trimmed);
-  } catch {
-    return value;
+const CPP_FALLBACK_STARTER = [
+  "#include <bits/stdc++.h>",
+  "using namespace std;",
+  "",
+  "int main() {",
+  "    // TODO: implement solution",
+  "    return 0;",
+  "}",
+].join("\n");
+
+function getStarterCodeForLanguage(problem, language) {
+  const starterCodeByLanguage =
+    problem && typeof problem.starterCode === "object" ? problem.starterCode : {};
+
+  const rawStarter =
+    starterCodeByLanguage?.[language] ||
+    (language === "cpp" ? CPP_FALLBACK_STARTER : JS_FALLBACK_STARTER);
+
+  const normalizedStarter = String(rawStarter || "");
+  if (language !== "javascript") {
+    return normalizedStarter;
   }
-};
 
-const normalizeInputArgs = (rawInput) => {
-  const parsed = parseMaybeJson(rawInput);
-  return Array.isArray(parsed) ? parsed : [parsed];
-};
-
-const toJson = (value) => {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-};
+  return normalizedStarter.replace(
+    /\n?\s*module\.exports\s*=\s*\{?\s*solution\s*\}?\s*;?\s*$/m,
+    ""
+  );
+}
 
 export default function PracticeWorkspace() {
   const navigate = useNavigate();
@@ -44,6 +59,7 @@ export default function PracticeWorkspace() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
+  const [selectedLanguage, setSelectedLanguage] = useState("javascript");
   const [code, setCode] = useState("");
   const [output, setOutput] = useState("");
   const [lastResult, setLastResult] = useState(null);
@@ -68,10 +84,7 @@ export default function PracticeWorkspace() {
         if (!active) return;
 
         setProblem(data);
-        const starter =
-          (typeof data?.starterCode === "object" ? data?.starterCode?.javascript : "") ||
-          "function solution(input) {\n  // TODO: implement solution\n  return input;\n}";
-        setCode(starter);
+        setCode(getStarterCodeForLanguage(data, "javascript"));
       } catch (error) {
         if (!active) return;
         const message = error?.message || "Unable to load the practice problem.";
@@ -95,77 +108,39 @@ export default function PracticeWorkspace() {
     };
   }, [notify, problemId]);
 
-  const evaluateCode = async (mode) => {
+  useEffect(() => {
     if (!problem) return;
+    setCode(getStarterCodeForLanguage(problem, selectedLanguage));
+    setOutput("");
+    setLastResult(null);
+  }, [problem, selectedLanguage]);
+
+  const evaluateCode = async (mode) => {
+    if (!problem || !code.trim()) return;
 
     setRunning(true);
     setRunMode(mode);
-    setOutput(mode === "test" ? "Testing against sample cases..." : "Submitting for practice evaluation...");
-
-    const startedAt = Date.now();
+    setOutput(
+      mode === "test"
+        ? `Testing ${selectedLanguage === "cpp" ? "C++" : "JavaScript"} against sample cases...`
+        : `Submitting ${selectedLanguage === "cpp" ? "C++" : "JavaScript"} to balanced practice suite...`
+    );
 
     try {
-      const solverFactory = new Function(
-        `${code}\n; if (typeof solution !== "function") { throw new Error("function 'solution' not found."); } return solution;`
-      );
-      const solution = solverFactory();
-
-      const cases = Array.isArray(problem.testCases) ? problem.testCases : [];
-      if (cases.length === 0) {
-        throw new Error("No sample test cases configured for this problem.");
-      }
-
-      let passedCases = 0;
-      const failures = [];
-
-      cases.forEach((testCase, index) => {
-        const args = normalizeInputArgs(testCase.input);
-        const expected = parseMaybeJson(testCase.output);
-
-        try {
-          const actual = solution(...args);
-          if (toJson(actual) === toJson(expected)) {
-            passedCases += 1;
-            return;
-          }
-
-          failures.push({
-            index: index + 1,
-            input: testCase.input,
-            expected,
-            actual,
-          });
-        } catch (error) {
-          failures.push({
-            index: index + 1,
-            input: testCase.input,
-            expected,
-            actual: null,
-            reason: error?.message || "Runtime Error",
-          });
-        }
+      const result = await evaluatePracticeCode({
+        problemId,
+        code,
+        language: selectedLanguage,
+        mode,
       });
 
-      const passed = failures.length === 0;
-      const executionTime = Date.now() - startedAt;
-
-      const firstFailure = failures[0];
-      const outputMessage = passed
-        ? `All ${cases.length} visible test case(s) passed.`
-        : `Passed ${passedCases}/${cases.length} visible test case(s).\nFailed Case ${firstFailure.index}\nInput: ${toJson(firstFailure.input)}\nExpected: ${toJson(firstFailure.expected)}\nGot: ${toJson(firstFailure.actual)}${firstFailure.reason ? `\nReason: ${firstFailure.reason}` : ""}`;
-
-      const result = {
-        passed,
-        totalTestCases: cases.length,
-        passedTestCases: passedCases,
-        executionTime,
-      };
+      const passed = Boolean(result?.passed);
 
       setLastResult(result);
       setOutput(
         mode === "submit"
-          ? `${outputMessage}\n\nPractice mode evaluates public/sample cases only.`
-          : outputMessage
+          ? `${result?.output || "Submission finished."}\n\nPractice submit uses a balanced suite: sample + limited hidden/edge checks.`
+          : result?.output || "Test run completed."
       );
 
       if (mode === "submit") {
@@ -200,7 +175,7 @@ export default function PracticeWorkspace() {
               });
             }
           }
-        } catch (progressError) {
+        } catch {
           notify({
             type: "warning",
             title: "Progress Not Synced",
@@ -211,7 +186,7 @@ export default function PracticeWorkspace() {
         notify({
           type: "success",
           title: "Sample Tests Passed",
-          message: `Passed ${passedCases}/${cases.length} visible test case(s).`,
+          message: `Passed ${result?.passedTestCases ?? 0}/${result?.totalTestCases ?? 0} test case(s).`,
           duration: 2200,
         });
       }
@@ -309,14 +284,30 @@ export default function PracticeWorkspace() {
               <pre className="livebattle-example-fallback">No sample case available.</pre>
             )}
 
-            <p className="livebattle-problem-note">Practice Mode: Public test cases only</p>
+            <p className="livebattle-problem-note">
+              Practice Test uses sample cases. Practice Submit uses a balanced suite with limited hidden/edge checks.
+            </p>
           </div>
         </section>
 
         <section className="livebattle-panel livebattle-editor-panel">
           <div className="livebattle-panel-head">
             <h3>Solution</h3>
-            <span className="livebattle-chip">JavaScript</span>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <span className="livebattle-chip">{selectedLanguage === "cpp" ? "C++" : "JavaScript"}</span>
+              <select
+                className="livebattle-language-select"
+                value={selectedLanguage}
+                onChange={(event) => setSelectedLanguage(event.target.value)}
+                disabled={running}
+              >
+                {LANGUAGE_OPTIONS.map((languageOption) => (
+                  <option key={languageOption.value} value={languageOption.value}>
+                    {languageOption.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <textarea
@@ -349,7 +340,7 @@ export default function PracticeWorkspace() {
                 disabled={running}
               >
                 <FontAwesomeIcon icon={faForward} />
-                {running && runMode === "submit" ? "Submitting..." : "Submit (All)"}
+                {running && runMode === "submit" ? "Submitting..." : "Submit (Balanced)"}
               </button>
             </div>
 

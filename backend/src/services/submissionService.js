@@ -174,6 +174,15 @@ const processSubmission = async (userId, matchId, code, language, problemId, io)
     const match = await Match.findById(matchId);
     if (!match || match.status !== 'active') throw new Error('Match not active or not found');
 
+    const normalizedUserId = String(userId);
+    const isParticipant =
+        String(match.player1 || '') === normalizedUserId ||
+        String(match.player2 || '') === normalizedUserId;
+
+    if (!isParticipant) {
+        throw new Error('User is not a participant in this match');
+    }
+
     const problem = await Problem.findById(problemId);
     if (!problem) throw new Error('Problem not found');
 

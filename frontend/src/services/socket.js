@@ -9,13 +9,18 @@ export function getSocket() {
   if (!socket) {
     socket = io(SOCKET_URL, {
       autoConnect: false,
+      auth: {},
     });
   }
   return socket;
 }
 
-export function connectSocket() {
+export function connectSocket(token, uid) {
   const s = getSocket();
+  s.auth = {
+    ...(token ? { token } : {}),
+    ...(uid ? { uid } : {}),
+  };
   if (!s.connected) {
     s.connect();
   }

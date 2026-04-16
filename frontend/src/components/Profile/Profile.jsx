@@ -6,6 +6,7 @@ import {
     faChartLine,
     faCheckCircle,
     faCode,
+    faCoins,
     faMedal,
     faShieldHalved,
     faStar,
@@ -14,14 +15,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchUserProfile } from '../../services/api';
-
-function deriveRank(rating) {
-    if (rating >= 2200) return 'Grandmaster';
-    if (rating >= 1800) return 'Master';
-    if (rating >= 1500) return 'Expert';
-    if (rating >= 1200) return 'Warrior';
-    return 'Novice';
-}
+import { calculateArenaPointBreakdown, normalizeUserStats } from '../../utils/playerMetrics';
 
 function Profile() {
     const { user, loading: authLoading } = useAuth();
@@ -65,18 +59,26 @@ function Profile() {
     const email = profile?.email || user?.email || '';
     const photoURL = profile?.photoURL || user?.photoURL || '';
 
-    const rating = Number(profile?.rating ?? 1200);
-    const matchesPlayed = Number(profile?.matchesPlayed ?? 0);
-    const matchesWon = Number(profile?.matchesWon ?? 0);
-    const practiceSolved = Number(
-        profile?.practiceSolvedCount ??
-        (Array.isArray(profile?.practiceSolvedProblemIds) ? profile.practiceSolvedProblemIds.length : 0)
-    );
-    const practiceSubmissions = Number(profile?.practiceSubmissionCount ?? 0);
-    const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
-    const practiceAccuracy = practiceSubmissions > 0 ? Math.round((practiceSolved / practiceSubmissions) * 100) : 0;
-    const lossCount = Math.max(0, matchesPlayed - matchesWon);
-    const rank = deriveRank(rating);
+    const {
+        rating,
+        matchesPlayed,
+        matchesWon,
+        practiceSolved,
+        practiceSubmissions,
+        winRate,
+        practiceAccuracy,
+        lossCount,
+        rank,
+    } = normalizeUserStats(profile || {});
+
+    const pointBreakdown = calculateArenaPointBreakdown({
+        rating,
+        matchesPlayed,
+        matchesWon,
+        practiceSolved,
+        practiceSubmissions,
+    });
+    const arenaPoints = pointBreakdown.total;
 
     const ratingProgress = Math.min(100, Math.round((rating / 2400) * 100));
     const activityProgress = Math.min(100, Math.round(((matchesPlayed + practiceSolved) / 120) * 100));
@@ -91,6 +93,13 @@ function Profile() {
                 hint: `${rank} tier`,
                 icon: faTrophy,
                 tone: 'gold',
+            },
+            {
+                label: 'Arena Points',
+                value: arenaPoints,
+                hint: 'Rating + wins + practice + participation',
+                icon: faCoins,
+                tone: 'cyan',
             },
             {
                 label: 'Battles Played',
@@ -113,15 +122,8 @@ function Profile() {
                 icon: faBolt,
                 tone: 'green',
             },
-            {
-                label: 'Current Rank',
-                value: rank,
-                hint: 'Keep climbing',
-                icon: faMedal,
-                tone: 'violet',
-            },
         ],
-        [rating, rank, matchesPlayed, matchesWon, lossCount, winRate, practiceSolved, practiceSubmissions, practiceAccuracy]
+        [rating, rank, arenaPoints, matchesPlayed, matchesWon, lossCount, winRate, practiceSolved, practiceSubmissions, practiceAccuracy]
     );
 
     const achievements = useMemo(
@@ -164,41 +166,43 @@ function Profile() {
 
     return (
         <div className="profile-page">
-            <section className="profile-hero-card">
-                <div className="profile-identity-row">
-                    <div className="profile-avatar-shell">
-                        {photoURL ? (
-                            <img src={photoURL} alt="Profile avatar" className="profile-avatar-image" />
-                        ) : (
-                            <FontAwesomeIcon icon={faUser} />
-                        )}
+            <section className="profile-overview-shell">
+                <section className="profile-hero-card">
+                    <div className="profile-identity-row">
+                        <div className="profile-avatar-shell">
+                            {photoURL ? (
+                                <img src={photoURL} alt="Profile avatar" className="profile-avatar-image" />
+                            ) : (
+                                <FontAwesomeIcon icon={faUser} />
+                            )}
+                        </div>
+
+                        <div className="profile-identity-copy">
+                            <div className="profile-pre-heading">PLAYER PROFILE</div>
+                            <h1>{displayName}</h1>
+                            <p>{email || 'Signed-in competitor'}</p>
+                        </div>
+
+                        <div className="profile-rank-chip">{rank}</div>
                     </div>
 
-                    <div className="profile-identity-copy">
-                        <div className="profile-pre-heading">PLAYER PROFILE</div>
-                        <h1>{displayName}</h1>
-                        <p>{email || 'Signed-in competitor'}</p>
-                    </div>
+                    {profileError ? <div className="profile-warning">{profileError}</div> : null}
+                </section>
 
-                    <div className="profile-rank-chip">{rank}</div>
-                </div>
-
-                {profileError ? <div className="profile-warning">{profileError}</div> : null}
-            </section>
-
-            <section className="profile-stat-grid">
-                {profileStats.map((stat) => (
-                    <article key={stat.label} className="profile-stat-card">
-                        <div className={`profile-stat-icon tone-${stat.tone}`}>
-                            <FontAwesomeIcon icon={stat.icon} />
-                        </div>
-                        <div className="profile-stat-content">
-                            <p>{stat.label}</p>
-                            <h3>{stat.value}</h3>
-                            <span>{stat.hint}</span>
-                        </div>
-                    </article>
-                ))}
+                <section className="profile-stat-grid">
+                    {profileStats.map((stat) => (
+                        <article key={stat.label} className="profile-stat-card">
+                            <div className={`profile-stat-icon tone-${stat.tone}`}>
+                                <FontAwesomeIcon icon={stat.icon} />
+                            </div>
+                            <div className="profile-stat-content">
+                                <p>{stat.label}</p>
+                                <h3>{stat.value}</h3>
+                                <span>{stat.hint}</span>
+                            </div>
+                        </article>
+                    ))}
+                </section>
             </section>
 
             <section className="profile-content-grid">

@@ -75,14 +75,21 @@ const buildStarterCode = () => ({
         'function solution(input) {',
         '  // TODO: implement solution',
         '  return input;',
-        '}',
-        '',
-        'module.exports = { solution };'
+        '}'
     ].join('\n'),
     python: [
         'def solution(input_data):',
         '    # TODO: implement solution',
         '    return input_data'
+    ].join('\n'),
+    cpp: [
+        '#include <bits/stdc++.h>',
+        'using namespace std;',
+        '',
+        'int main() {',
+        '    // TODO: implement solution',
+        '    return 0;',
+        '}'
     ].join('\n')
 });
 

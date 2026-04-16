@@ -48,6 +48,20 @@
   font-size: 1.04rem;
 }
 
+.rewards-warning {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 166, 0, 0.35);
+  background: rgba(255, 166, 0, 0.08);
+  color: #ffc168;
+  padding: 9px 12px;
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
 .rewards-kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

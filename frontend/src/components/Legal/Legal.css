@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap');
+
+.legal-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 64px 5% 84px;
+  min-height: calc(100vh - 80px);
+  color: #f5f9ff;
+  font-family: 'Inter', sans-serif;
+}
+
+.legal-hero,
+.legal-panel {
+  border-radius: 20px;
+  border: 1px solid rgba(0, 229, 255, 0.16);
+  background: linear-gradient(160deg, rgba(0, 0, 0, 0.5), rgba(4, 18, 34, 0.68));
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.legal-hero {
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.legal-pre {
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #8596b0;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.legal-hero h1 {
+  margin: 0 0 10px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(1.9rem, 4.2vw, 3rem);
+  line-height: 1.07;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: #eef9ff;
+  text-shadow: none;
+}
+
+.legal-hero p {
+  margin: 0;
+  color: #9eacc2;
+  line-height: 1.7;
+}
+
+.legal-meta {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  background: rgba(0, 229, 255, 0.08);
+  color: #79eaff;
+  padding: 7px 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legal-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.legal-panel {
+  padding: 18px;
+}
+
+.legal-panel h2 {
+  margin: 0 0 8px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.15rem;
+  color: #ecf8ff;
+  text-transform: none;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+.legal-panel p {
+  margin: 0;
+  color: #a0aec4;
+  line-height: 1.7;
+}
+
+.legal-panel ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #a0aec4;
+  line-height: 1.7;
+}
+
+.legal-panel li {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 720px) {
+  .legal-page {
+    padding: 46px 4% 72px;
+  }
+
+  .legal-hero,
+  .legal-panel {
+    border-radius: 16px;
+    padding: 16px;
+  }
+}
