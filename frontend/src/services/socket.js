@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || "";
+const rawApiUrl = (import.meta.env.VITE_API_URL || "").trim();
+const SOCKET_URL = rawApiUrl.replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 // Singleton socket instance — connects lazily
 let socket = null;

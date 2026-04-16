@@ -19,10 +19,15 @@ const Problem = require("./src/models/Problem");
 const Match = require("./src/models/Match");
 const problemRoutes = require("./src/routes/problemRoutes");
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://algo-fight.vercel.app",
+  process.env.FRONTEND_URL
+].filter(Boolean);
 const RECENT_PROBLEM_WINDOW = parseInt(process.env.RECENT_PROBLEM_WINDOW, 10) || 20;
 
 const app = express();
-app.use(cors({ origin: frontendUrl }));
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 app.use(apiLimiter);
 app.use("/api/problems", problemRoutes);
@@ -30,7 +35,7 @@ app.use("/api/problems", problemRoutes);
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: frontendUrl,
+    origin: allowedOrigins,
     methods: ["GET", "POST"]
   }
 });

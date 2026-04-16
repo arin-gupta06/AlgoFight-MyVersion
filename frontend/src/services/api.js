@@ -1,6 +1,8 @@
 import { auth } from "../firebaseConfig";
 
-const API_URL = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const rawApiUrl = (import.meta.env.VITE_API_URL || "").trim();
+// Strip trailing /api to avoid /api/api calls
+const API_URL = rawApiUrl.replace(/\/api\/?$/, "").replace(/\/$/, "");
 
 function toApiUrl(path) {
   return API_URL ? `${API_URL}${path}` : path;
