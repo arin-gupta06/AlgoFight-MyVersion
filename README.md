@@ -160,7 +160,7 @@ MATCH_DURATION=1800000
 FIREBASE_API_KEY=<your-firebase-web-api-key>
 ```
 
-Important: In deployment, `FIREBASE_API_KEY` must be set on the backend service. Without it, `/api/users` and authenticated Socket.IO connections will fail with auth errors.
+Important: In deployment, setting `FIREBASE_API_KEY` is recommended for the primary lookup path. The backend now also verifies Firebase JWTs using Google's public signing certs, so authentication can still work when the API key is unavailable.
 
 Start the backend:
 
