@@ -5,6 +5,11 @@ import { syncUserToBackend } from "../services/api";
 
 const AuthContext = createContext(null);
 
+function isAuthTokenError(error) {
+  const message = String(error?.message || "");
+  return /Invalid or expired auth token|Authentication required/i.test(message);
+}
+
 export function useAuth() {
   return useContext(AuthContext);
 }
@@ -17,17 +22,28 @@ export function AuthProvider({ children }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         // Sync to backend on every auth state change
+        const syncPayload = {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email,
+          displayName: firebaseUser.displayName || "New Player",
+          photoURL: firebaseUser.photoURL,
+        };
+
         try {
           const authToken = await firebaseUser.getIdToken();
-          await syncUserToBackend({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            displayName: firebaseUser.displayName || "New Player",
-            photoURL: firebaseUser.photoURL,
-            authToken,
-          });
+          await syncUserToBackend({ ...syncPayload, authToken });
         } catch (err) {
-          console.error("Failed to sync user to backend:", err);
+          if (isAuthTokenError(err)) {
+            try {
+              // Force refresh and retry once to handle stale token snapshots.
+              const refreshedToken = await firebaseUser.getIdToken(true);
+              await syncUserToBackend({ ...syncPayload, authToken: refreshedToken });
+            } catch (retryError) {
+              console.error("Failed to sync user to backend after retry:", retryError);
+            }
+          } else {
+            console.error("Failed to sync user to backend:", err);
+          }
         }
         setUser(firebaseUser);
       } else {

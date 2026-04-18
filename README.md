@@ -157,7 +157,10 @@ MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/algofight?retryW
 JWT_SECRET=your_secret_key
 ELO_K_FACTOR=32
 MATCH_DURATION=1800000
+FIREBASE_API_KEY=<your-firebase-web-api-key>
 ```
+
+Important: In deployment, `FIREBASE_API_KEY` must be set on the backend service. Without it, `/api/users` and authenticated Socket.IO connections will fail with auth errors.
 
 Start the backend:
 

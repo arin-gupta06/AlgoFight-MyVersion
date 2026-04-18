@@ -162,6 +162,19 @@ export default function LiveBattle() {
       });
     });
 
+      socket.on("connect_error", (err) => {
+        const message = String(err?.message || "Unable to connect to battle server.");
+        setStatus("connecting");
+        setRunning(false);
+        setRunMode("idle");
+        setOutput(`Connection error: ${message}`);
+        notify({
+          type: "error",
+          title: "Connection Failed",
+          message,
+        });
+      });
+
     };
 
     setupSocket();
@@ -181,6 +194,7 @@ export default function LiveBattle() {
       activeSocket.off("battle_over");
       activeSocket.off("opponent_disconnected");
       activeSocket.off("error");
+      activeSocket.off("connect_error");
       disconnectSocket();
     };
   }, [notify, user?.uid, username]);

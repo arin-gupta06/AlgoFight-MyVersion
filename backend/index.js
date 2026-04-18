@@ -8,7 +8,9 @@ const mongoose = require("mongoose");
 const { executeCode: executeCodeDocker } = require('./src/services/submissionService');
 const { apiLimiter } = require('./src/middleware/rateLimiter');
 const {
+  FIREBASE_AUTH_CONFIG_ERROR,
   extractBearerToken,
+  isFirebaseAuthConfigured,
   requireFirebaseUser,
   verifyFirebaseIdToken,
 } = require('./src/middleware/firebaseAuth');
@@ -31,6 +33,10 @@ app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 app.use(apiLimiter);
 app.use("/api/problems", problemRoutes);
+
+if (process.env.NODE_ENV === "production" && !isFirebaseAuthConfigured()) {
+  console.warn("Firebase auth is not fully configured. Set FIREBASE_API_KEY for production token verification.");
+}
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -55,7 +61,7 @@ io.use(async (socket, next) => {
       return next();
     }
 
-    if (process.env.NODE_ENV !== 'production' && !process.env.FIREBASE_API_KEY) {
+    if (process.env.NODE_ENV !== 'production' && !isFirebaseAuthConfigured()) {
       const devUid = socket.handshake.auth?.uid;
       if (devUid) {
         socket.firebaseUid = String(devUid);
@@ -66,6 +72,9 @@ io.use(async (socket, next) => {
 
     return next(new Error('Authentication required'));
   } catch (error) {
+    if (error?.code === FIREBASE_AUTH_CONFIG_ERROR) {
+      return next(new Error('Server auth configuration missing'));
+    }
     return next(new Error('Invalid auth token'));
   }
 });
