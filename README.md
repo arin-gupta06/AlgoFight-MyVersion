@@ -41,21 +41,26 @@ AlgoFight is a real-time competitive coding platform where developers challenge 
 
 ```
 AlgoFight/
+├── algofight_100_questions.md   # Problem set reference used by import/seed utilities
 ├── frontend/                    # React + Vite frontend
 │   └── src/
 │       ├── components/
-│       │   ├── Home/            # Landing page with hero section
-│       │   ├── Battle/          # BattleArena (stats + Find Match) & LiveBattle (real-time duel)
-│       │   ├── Profile/         # User profile, stats, achievements
-│       │   ├── Leaderboard/     # Elo rankings table from MongoDB
-│       │   ├── Rewards/         # Points & redemption system
 │       │   ├── About/           # Team & mission info
-│       │   ├── NavBar/          # Navigation with auth-aware logout
-│       │   ├── Login/           # Firebase Google/GitHub login
-│       │   ├── Signup/          # User registration
-│       │   ├── ChallengeQuote/  # Motivational quotes
 │       │   ├── BackgroundPaths/ # Animated background effects
-│       │   └── Squares/         # Visual grid component
+│       │   ├── Battle/          # BattleArena + LiveBattle components
+│       │   ├── ChallengeQuote/  # Motivational quotes
+│       │   ├── Developer/       # Developer showcase page
+│       │   ├── Home/            # Landing page with hero section
+│       │   ├── Leaderboard/     # Elo rankings table from MongoDB
+│       │   ├── Legal/           # Terms, Privacy, Cookies pages
+│       │   ├── Login/           # Firebase Google/GitHub login
+│       │   ├── NavBar/          # Navigation with auth-aware logout
+│       │   ├── Practice/        # Practice mode workspace/components
+│       │   ├── Profile/         # User profile, stats, achievements
+│       │   ├── Rewards/         # Points & redemption system
+│       │   ├── Signup/          # User registration
+│       │   ├── Squares/         # Visual grid component
+│       │   └── ProtectedRoute.jsx
 │       ├── contexts/
 │       │   └── AuthContext.jsx  # Firebase auth state + backend sync
 │       ├── services/
@@ -66,16 +71,29 @@ AlgoFight/
 │       └── main.jsx             # Entry point with AuthProvider
 │
 ├── backend/                     # Node.js + Express backend
-│   ├── index.js                 # Main server — Express, Socket.IO, MongoDB, all logic
-│   ├── .env                     # PORT, MONGO_URI, JWT_SECRET, ELO_K_FACTOR
+│   ├── index.js                 # Main server entrypoint
+│   ├── controllers/             # Legacy/top-level controller modules
+│   ├── routes/                  # Legacy/top-level route modules
+│   ├── middleware/              # Legacy/top-level middleware modules
+│   ├── executor/                # Code execution container/runtime files
 │   ├── models/
 │   │   └── User.js              # Mongoose User schema (firebaseUid, rating, stats)
 │   ├── src/
-│   │   └── models/
-│   │       ├── Problem.js       # Coding problem schema with test cases
-│   │       └── Match.js         # Match history schema
+│   │   ├── config/
+│   │   ├── controllers/
+│   │   ├── middleware/
+│   │   ├── models/
+│   │   │   ├── Match.js         # Match history schema
+│   │   │   ├── Problem.js       # Coding problem schema with test cases
+│   │   │   └── Submission.js    # Submission results and execution metadata
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── utils/
+│   │   └── validation/
 │   └── package.json
 ```
+
+`algofight_100_questions.md` contains the curated question set used by backend import/seed utilities.
 
 ---
 
